@@ -14,7 +14,7 @@
 #include "cfg.h"
 #include <stdlib.h>
 #include <vector>
-
+#include "tlb.h"
 // virtual memory configuration
 #define PGSHIFT 12
 const reg_t PGSIZE = 1 << PGSHIFT;
@@ -92,6 +92,7 @@ private:
 public:
   mmu_t(simif_t* sim, endianness_t endianness, processor_t* proc);
   ~mmu_t();
+  WalkRecord tlb_walk_record;  // record the last page walk for the hardware TLB optimization
 
   template<typename T>
   T ALWAYS_INLINE load(reg_t addr, xlate_flags_t xlate_flags = {false, false, false}) {
@@ -105,6 +106,16 @@ public:
     } else {
       load_slow_path(addr, sizeof(T), (uint8_t*)&res, xlate_flags);
     }
+
+    if(tlb_d) { 
+      auto tr = tlb_d->translate(latency, vpn, generate_access_info(addr, LOAD, xlate_flags)); 
+      uint64_t paddr = addr + tlb_data[vpn % TLB_ENTRIES].target_offset; 
+      if(tr.va && !xlate_flags.is_special_access()) assert(tr.ppn == paddr >> PGSHIFT); 
+      if(tr.va) assert(check_tlb_permission_data(tr.pte, LOAD)); 
+      if(cache_d && is_memory(paddr)){ 
+        cache_d->read(paddr, latency); 
+      } 
+    } 
 
     if (unlikely(proc && proc->get_log_commits_enabled()))
       proc->state.log_mem_read.push_back(std::make_tuple(addr, 0, sizeof(T)));
@@ -148,6 +159,19 @@ public:
       target_endian<T> target_val = to_target(val);
       store_slow_path(addr, sizeof(T), (const uint8_t*)&target_val, xlate_flags, true, false);
     }
+
+    if(tlb_d) { 
+      auto tr = tlb_d->translate(latency, vpn, generate_access_info(addr, STORE, xlate_flags)); 
+      uint64_t paddr = addr + tlb_data[vpn % TLB_ENTRIES].target_offset; 
+      if(tr.va && !xlate_flags.is_special_access()) assert(tr.ppn == paddr >> PGSHIFT); 
+      if(tr.va) assert(check_tlb_permission_data(tr.pte, STORE)); 
+      if(cache_d && is_memory(paddr)){ 
+        uint64_t darray[8] = {};
+        Data64B data;
+        data.write(darray);
+        cache_d->write(paddr, &data, latency); 
+      } 
+    } 
 
     if (unlikely(proc && proc->get_log_commits_enabled()))
       proc->state.log_mem_write.push_back(std::make_tuple(addr, val, sizeof(T)));
@@ -294,6 +318,10 @@ public:
     insn_bits_t insn = from_le(*(uint16_t*)(tlb_entry.host_offset + addr));
     int length = insn_length(insn);
 
+    uint64_t paddr = addr + tlb_entry.target_offset;
+    if(cache_i && is_memory(paddr)){
+      cache_i->read(paddr, latency); // normally more than one instruction is readed per refill
+    }
     if (likely(length == 4)) {
       insn |= (insn_bits_t)from_le(*(const uint16_t*)translate_insn_addr_to_host(addr + 2)) << 16;
     } else if (length == 2) {
@@ -313,19 +341,20 @@ public:
     entry->next = &icache[icache_index(addr + length)];
     entry->data = fetch;
 
-    reg_t paddr = tlb_entry.target_offset + addr;;
-    if (tracer.interested_in_range(paddr, paddr + 1, FETCH)) {
-      entry->tag = -1;
-      tracer.trace(paddr, length, FETCH);
-    }
     return entry;
   }
 
   inline icache_entry_t* access_icache(reg_t addr)
   {
     icache_entry_t* entry = &icache[icache_index(addr)];
-    if (likely(entry->tag == addr))
+    if (likely(entry->tag == addr)) {
+      auto tlb_entry = translate_insn_addr(addr); // must have hit in software tlb
+      uint64_t paddr = addr + tlb_entry.target_offset;
+      if(cache_i && is_memory(paddr)){
+        cache_i->read(paddr, latency);
+      }
       return entry;
+    }
     return refill_icache(addr, entry);
   }
 
@@ -337,6 +366,8 @@ public:
 
   void flush_tlb();
   void flush_icache();
+  void flush_hard_tlb_i() { if(tlb_i) tlb_i->flush(); }
+  void flush_hard_tlb_d() { if(tlb_d) tlb_d->flush(); }
 
   void register_memtracer(memtracer_t*);
 
@@ -354,6 +385,9 @@ public:
   {
     return target_big_endian? n.from_be() : n.from_le();
   }
+
+  // perform a page table walk for a given VA; set referenced/dirty bits
+  reg_t walk(mem_access_info_t access_info);
 
   template<typename T> inline target_endian<T> to_target(T n) const
   {
@@ -393,8 +427,7 @@ private:
   // perform a stage2 translation for a given guest address
   reg_t s2xlate(reg_t gva, reg_t gpa, access_type type, access_type trap_type, bool virt, bool hlvx);
 
-  // perform a page table walk for a given VA; set referenced/dirty bits
-  reg_t walk(mem_access_info_t access_info);
+
 
   // handle uncommon cases: TLB misses, page faults, MMIO
   tlb_entry_t fetch_slow_path(reg_t addr);
@@ -460,12 +493,43 @@ private:
     }
   }
 
+  bool check_tlb_permission_insn(reg_t pte) {
+    reg_t mode = proc->state.prv;
+    assert(get_field(pte, PTE_V) && get_field(pte, PTE_X));
+    assert(!(mode == PRV_U) || get_field(pte, PTE_U));
+    return true;
+  }
+
+  bool check_tlb_permission_data(reg_t pte, access_type acc_type) {
+    reg_t mstatus = proc->state.mstatus->read();
+    reg_t mode = proc->state.prv;
+    if (!proc->state.debug_mode && get_field(mstatus, MSTATUS_MPRV))
+      mode = get_field(mstatus, MSTATUS_MPP);
+    assert(get_field(pte, PTE_V));
+    assert(!(acc_type == LOAD) ||
+           (get_field(pte, PTE_R) || (get_field(pte, PTE_X) && get_field(mstatus, MSTATUS_MXR))));
+    assert(!(acc_type == STORE) || (get_field(pte, PTE_W) && get_field(pte, PTE_R)));
+    assert(!(mode == PRV_U) || get_field(pte, PTE_U));
+    assert(!(mode == PRV_S) || !get_field(pte, PTE_U) || get_field(proc->state.mstatus->read(), MSTATUS_SUM));
+    return true;
+  }
+
   // ITLB lookup
   inline tlb_entry_t translate_insn_addr(reg_t addr) {
     reg_t vpn = addr >> PGSHIFT;
+    tlb_entry_t result;
     if (likely(tlb_insn_tag[vpn % TLB_ENTRIES] == vpn))
-      return tlb_data[vpn % TLB_ENTRIES];
-    return fetch_slow_path(addr);
+      result = tlb_data[vpn % TLB_ENTRIES];
+    result = fetch_slow_path(addr);
+
+    // simulate the hardware TLB
+    if(tlb_i) {
+      auto tr = tlb_i->translate(latency, vpn, generate_access_info(addr, FETCH, {false, false, false}));
+      if(tr.va) assert(tr.ppn == (addr + result.target_offset) >> PGSHIFT);
+      if(tr.va) assert(check_tlb_permission_insn(tr.pte));
+    }
+
+    return result;
   }
 
   inline const uint16_t* translate_insn_addr_to_host(reg_t addr) {
