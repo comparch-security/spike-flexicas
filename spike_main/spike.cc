@@ -8,6 +8,7 @@
 #include "remote_bitbang.h"
 #include "cachesim.h"
 #include "extension.h"
+#include "flexicas.h"
 #include <dlfcn.h>
 #include <fesvr/option_parser.h>
 #include <stdio.h>
@@ -46,13 +47,10 @@ static void help(int exit_code = 1)
   fprintf(stderr, "  --varch=<name>        RISC-V Vector uArch string [default %s]\n", DEFAULT_VARCH);
   fprintf(stderr, "  --pc=<address>        Override ELF entry point\n");
   fprintf(stderr, "  --hartids=<a,b,...>   Explicitly specify hartids, default is 0,1,...\n");
-  fprintf(stderr, "  --ic=<S>:<W>:<B>      Instantiate a cache model with S sets,\n");
-  fprintf(stderr, "  --dc=<S>:<W>:<B>        W ways, and B-byte blocks (with S and\n");
-  fprintf(stderr, "  --l2=<S>:<W>:<B>        B both powers of 2).\n");
   fprintf(stderr, "  --big-endian          Use a big-endian memory system.\n");
   fprintf(stderr, "  --misaligned          Support misaligned memory accesses\n");
   fprintf(stderr, "  --device=<name>       Attach MMIO plugin device from an --extlib library\n");
-  fprintf(stderr, "  --log-cache-miss      Generate a log of cache miss\n");
+  //fprintf(stderr, "  --log-cache-miss      Generate a log of cache miss\n");
   fprintf(stderr, "  --log-commits         Generate a log of commits info\n");
   fprintf(stderr, "  --extension=<name>    Specify RoCC Extension\n");
   fprintf(stderr, "                          This flag can be used multiple times.\n");
@@ -333,9 +331,9 @@ int main(int argc, char** argv)
   const char* kernel = NULL;
   reg_t kernel_offset, kernel_size;
   std::vector<const device_factory_t*> plugin_device_factories;
-  std::unique_ptr<icache_sim_t> ic;
-  std::unique_ptr<dcache_sim_t> dc;
-  std::unique_ptr<cache_sim_t> l2;
+  //std::unique_ptr<icache_sim_t> ic;
+  //std::unique_ptr<dcache_sim_t> dc;
+  //std::unique_ptr<cache_sim_t> l2;
   bool log_cache = false;
   bool log_commits = false;
   const char *log_path = nullptr;
@@ -400,9 +398,6 @@ int main(int argc, char** argv)
     cfg.hartids = parse_hartids(s);
     cfg.explicit_hartids = true;
   });
-  parser.option(0, "ic", 1, [&](const char* s){ic.reset(new icache_sim_t(s));});
-  parser.option(0, "dc", 1, [&](const char* s){dc.reset(new dcache_sim_t(s));});
-  parser.option(0, "l2", 1, [&](const char* s){l2.reset(cache_sim_t::construct(s, "L2$"));});
   parser.option(0, "big-endian", 0, [&](const char UNUSED *s){cfg.endianness = endianness_big;});
   parser.option(0, "misaligned", 0, [&](const char UNUSED *s){cfg.misaligned = true;});
   parser.option(0, "log-cache-miss", 0, [&](const char UNUSED *s){log_cache = true;});
@@ -544,14 +539,11 @@ int main(int argc, char** argv)
     return 0;
   }
 
-  if (ic && l2) ic->set_miss_handler(&*l2);
-  if (dc && l2) dc->set_miss_handler(&*l2);
-  if (ic) ic->set_log(log_cache);
-  if (dc) dc->set_log(log_cache);
+  flexicas::init();
+  assert(nprocs() == flexicas::ncore());
+
   for (size_t i = 0; i < cfg.nprocs(); i++)
   {
-    if (ic) s.get_core(i)->get_mmu()->register_memtracer(&*ic);
-    if (dc) s.get_core(i)->get_mmu()->register_memtracer(&*dc);
     for (auto e : extensions)
       s.get_core(i)->register_extension(e());
     s.get_core(i)->get_mmu()->set_cache_blocksz(blocksz);
