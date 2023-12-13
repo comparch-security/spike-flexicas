@@ -6178,6 +6178,51 @@ $as_echo "#define CUSTOMEXT_ENABLED /**/" >>confdefs.h
 
     # Add subproject to our running list
 
+    subprojects="$subprojects flexicas"
+
+    # Process the subproject appropriately. If enabled add it to the
+    # $enabled_subprojects running shell variable, set a
+    # SUBPROJECT_ENABLED C define, and include the appropriate
+    # 'subproject.ac'.
+
+
+      { $as_echo "$as_me:${as_lineno-$LINENO}: configuring default subproject : flexicas" >&5
+$as_echo "$as_me: configuring default subproject : flexicas" >&6;}
+      ac_config_files="$ac_config_files flexicas.mk:flexicas/flexicas.mk.in"
+
+      enable_flexicas_sproj="yes"
+      subprojects_enabled="$subprojects_enabled flexicas"
+
+$as_echo "#define FLEXICAS_ENABLED /**/" >>confdefs.h
+
+
+
+
+
+
+    # Determine if this is a required or an optional subproject
+
+
+
+    # Determine if there is a group with the same name
+
+
+
+    # Create variations of the subproject name suitable for use as a CPP
+    # enabled define, a shell enabled variable, and a shell function
+
+
+
+
+
+
+
+
+
+
+
+    # Add subproject to our running list
+
     subprojects="$subprojects fdt"
 
     # Process the subproject appropriately. If enabled add it to the

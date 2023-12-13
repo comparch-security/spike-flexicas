@@ -94,7 +94,7 @@ VPATH := $(addprefix $(src_dir)/, $(sprojs_enabled))
 # highest.
 
 default-CFLAGS   := -DPREFIX=\"$(prefix)\" -Wall -Wno-unused -Wno-nonportable-include-path -g -O2 -fPIC
-default-CXXFLAGS := $(default-CFLAGS) -std=c++17
+default-CXXFLAGS := $(default-CFLAGS) -std=c++17 -fconcepts
 
 mcppbs-CPPFLAGS := @CPPFLAGS@
 mcppbs-CFLAGS   := $(default-CFLAGS) @CFLAGS@
@@ -245,7 +245,7 @@ lib$(1).a : $$($(2)_objs) $$($(2)_c_objs)
 	rm -f $$@
 	$(AR) rcs $$@ $$^
 lib$(1).so : $$($(2)_objs) $$($(2)_c_objs) $$($(2)_lib_libnames_shared) $$($(2)_lib_libnames)
-	$(LINK) -shared -o $$@ $(if $(filter Darwin,$(shell uname -s)),-install_name $(install_libs_dir)/$$@) $$^ $$($(2)_lib_libnames) $(LIBS)
+	$(LINK) -shared -o $$@ $(if $(filter Darwin,$(shell uname -s)),-install_name $(install_libs_dir)/$$@) $$^ $$($(2)_precompiled) $$($(2)_lib_libnames) $(LIBS)
 
 $(2)_junk += lib$(1).a
 $(2)_junk += $$(if $$($(2)_install_shared_lib),lib$(1).so,)

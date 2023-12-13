@@ -1,3 +1,3 @@
 [submodule "cache"]
-	path = cache
+	path = flexicas
 	url = ../FlexiCAS
