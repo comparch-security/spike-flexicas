@@ -43,7 +43,7 @@ int main(int UNUSED argc, char** argv)
             /*default_trigger_count=*/4);
 
   isa_parser_t isa(isa_string, DEFAULT_PRIV);
-  processor_t p(&isa, &cfg, 0, 0, false, nullptr, cerr);
+  processor_t p(&isa, &cfg, 0, 0, 0, false, nullptr, cerr);
   if (extension) {
     p.register_extension(extension());
   }

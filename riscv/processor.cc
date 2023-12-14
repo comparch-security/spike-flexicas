@@ -30,7 +30,7 @@
 #define STATE state
 
 processor_t::processor_t(const isa_parser_t *isa, const cfg_t *cfg,
-                         simif_t* sim, uint32_t id, bool halt_on_reset,
+                         simif_t* sim, uint32_t id, int index, bool halt_on_reset,
                          FILE* log_file, std::ostream& sout_)
   : debug(false), halt_request(HR_NONE), isa(isa), cfg(cfg), sim(sim), id(id), xlen(0),
   histogram_enabled(false), log_commits_enabled(false),
@@ -57,7 +57,7 @@ processor_t::processor_t(const isa_parser_t *isa, const cfg_t *cfg,
   parse_varch_string(cfg->varch());
 
   register_base_instructions();
-  mmu = new mmu_t(sim, cfg->endianness, this);
+  mmu = new mmu_t(sim, cfg->endianness, this, index);
 
   disassembler = new disassembler_t(isa);
   for (auto e : isa->get_extensions())

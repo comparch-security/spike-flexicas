@@ -6,8 +6,8 @@
 #include "simif.h"
 #include "processor.h"
 
-mmu_t::mmu_t(simif_t* sim, endianness_t endianness, processor_t* proc)
- : sim(sim), proc(proc),
+mmu_t::mmu_t(simif_t* sim, endianness_t endianness, processor_t* proc, int core)
+  : sim(sim), proc(proc), core(core), tlb_i(nullptr), tlb_d(nullptr),
 #ifdef RISCV_ENABLE_DUAL_ENDIAN
   target_big_endian(endianness == endianness_big),
 #endif
@@ -19,12 +19,20 @@ mmu_t::mmu_t(simif_t* sim, endianness_t endianness, processor_t* proc)
 #ifndef RISCV_ENABLE_DUAL_ENDIAN
   assert(endianness == endianness_little);
 #endif
+  if(proc) {
+    tlb_i = new HardTLBBase(core, this, 8);
+    tlb_d = new HardTLBBase(core, this, 8);
+  }
   flush_tlb();
   yield_load_reservation();
 }
 
 mmu_t::~mmu_t()
 {
+  if(proc) {
+    delete tlb_i;
+    delete tlb_d;
+  }
 }
 
 void mmu_t::flush_icache()
@@ -207,9 +215,7 @@ void mmu_t::load_slow_path_intrapage(reg_t len, uint8_t* bytes, mem_access_info_
 
   if (auto host_addr = sim->addr_to_mem(paddr)) {
     memcpy(bytes, host_addr, len);
-    if (tracer.interested_in_range(paddr, paddr + PGSIZE, LOAD))
-      tracer.trace(paddr, len, LOAD);
-    else if (!access_info.flags.is_special_access())
+    if (!access_info.flags.is_special_access())
       refill_tlb(addr, paddr, host_addr, LOAD);
 
   } else if (!mmio_load(paddr, len, bytes)) {
@@ -267,9 +273,7 @@ void mmu_t::store_slow_path_intrapage(reg_t len, const uint8_t* bytes, mem_acces
   if (actually_store) {
     if (auto host_addr = sim->addr_to_mem(paddr)) {
       memcpy(host_addr, bytes, len);
-      if (tracer.interested_in_range(paddr, paddr + PGSIZE, STORE))
-        tracer.trace(paddr, len, STORE);
-      else if (!access_info.flags.is_special_access())
+      if (!access_info.flags.is_special_access())
         refill_tlb(addr, paddr, host_addr, STORE);
     } else if (!mmio_store(paddr, len, bytes)) {
       throw trap_store_access_fault(access_info.effective_virt, addr, 0, 0);
@@ -483,6 +487,9 @@ reg_t mmu_t::walk(mem_access_info_t access_info)
   reg_t page_mask = (reg_t(1) << PGSHIFT) - 1;
   reg_t satp = proc->get_state()->satp->readvirt(virt);
   vm_info vm = decode_vm_info(proc->get_const_xlen(), false, mode, satp);
+  // record
+  tlb_walk_record.levels = vm.levels;
+  tlb_walk_record.vpn    = addr >> PGSHIFT;
   if (vm.levels == 0)
     return s2xlate(addr, addr & ((reg_t(2) << (proc->xlen-1))-1), type, type, virt, hlvx) & ~page_mask; // zero-extend from xlen
 
@@ -494,8 +501,10 @@ reg_t mmu_t::walk(mem_access_info_t access_info)
   int va_bits = PGSHIFT + vm.levels * vm.idxbits;
   reg_t mask = (reg_t(1) << (proc->xlen - (va_bits-1))) - 1;
   reg_t masked_msbs = (addr >> (va_bits-1)) & mask;
-  if (masked_msbs != 0 && masked_msbs != mask)
+  if (masked_msbs != 0 && masked_msbs != mask){
     vm.levels = 0;
+    tlb_walk_record.levels = 0;
+  }
 
   reg_t base = vm.ptbase;
   for (int i = vm.levels - 1; i >= 0; i--) {
@@ -504,6 +513,7 @@ reg_t mmu_t::walk(mem_access_info_t access_info)
 
     // check that physical address of PTE is legal
     auto pte_paddr = s2xlate(addr, base + idx * vm.ptesize, LOAD, type, virt, false);
+    tlb_walk_record.ptes[vm.levels-1-i] = pte_paddr;
     reg_t pte = pte_load(pte_paddr, addr, virt, type, vm.ptesize);
     reg_t ppn = (pte & ~reg_t(PTE_ATTR)) >> PTE_PPN_SHIFT;
     bool pbmte = virt ? (proc->get_state()->henvcfg->read() & HENVCFG_PBMTE) : (proc->get_state()->menvcfg->read() & MENVCFG_PBMTE);
@@ -555,7 +565,11 @@ reg_t mmu_t::walk(mem_access_info_t access_info)
                         | (vpn & ((reg_t(1) << napot_bits) - 1))
                         | (vpn & ((reg_t(1) << ptshift) - 1))) << PGSHIFT;
       reg_t phys = page_base | (addr & page_mask);
-      return s2xlate(addr, phys, type, type, virt, hlvx) & ~page_mask;
+      reg_t value = s2xlate(addr, phys, type, type, virt, hlvx) & ~page_mask;
+      tlb_walk_record.ppn = value >> PGSHIFT;
+      tlb_walk_record.levels = vm.levels - i;
+      tlb_walk_record.pte = pte;
+      return value;
     }
   }
 
