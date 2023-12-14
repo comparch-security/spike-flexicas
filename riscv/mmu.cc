@@ -7,7 +7,7 @@
 #include "processor.h"
 
 mmu_t::mmu_t(simif_t* sim, endianness_t endianness, processor_t* proc, int core)
-  : sim(sim), proc(proc), core(core),
+  : sim(sim), proc(proc), core(core), tlb_i(nullptr), tlb_d(nullptr),
 #ifdef RISCV_ENABLE_DUAL_ENDIAN
   target_big_endian(endianness == endianness_big),
 #endif
@@ -19,16 +19,20 @@ mmu_t::mmu_t(simif_t* sim, endianness_t endianness, processor_t* proc, int core)
 #ifndef RISCV_ENABLE_DUAL_ENDIAN
   assert(endianness == endianness_little);
 #endif
-  tlb_i = new HardTLBBase(core, this, 8);
-  tlb_d = new HardTLBBase(core, this, 8);
+  if(proc) {
+    tlb_i = new HardTLBBase(core, this, 8);
+    tlb_d = new HardTLBBase(core, this, 8);
+  }
   flush_tlb();
   yield_load_reservation();
 }
 
 mmu_t::~mmu_t()
 {
-  delete tlb_i;
-  delete tlb_d;
+  if(proc) {
+    delete tlb_i;
+    delete tlb_d;
+  }
 }
 
 void mmu_t::flush_icache()

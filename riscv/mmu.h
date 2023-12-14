@@ -10,6 +10,7 @@
 #include "processor.h"
 #include "memtracer.h"
 #include "tlb.h"
+#include "devices.h"
 #include "flexicas.h"
 #include "../fesvr/byteorder.h"
 #include "triggers.h"
@@ -110,11 +111,13 @@ public:
       load_slow_path(addr, sizeof(T), (uint8_t*)&res, xlate_flags);
     }
 
-    auto tr = tlb_d->translate(latency, vpn, generate_access_info(addr, LOAD, xlate_flags));
-    uint64_t paddr = addr + tlb_data[vpn % TLB_ENTRIES].target_offset;
-    if(tr.va && !xlate_flags.is_special_access()) assert(tr.ppn == paddr >> PGSHIFT);
-    if(tr.va) assert(check_tlb_permission_data(tr.pte, LOAD));
-    if(is_memory(paddr)) flexicas::read(paddr, core, false);
+    if(proc) {
+      auto tr = tlb_d->translate(vpn, generate_access_info(addr, LOAD, xlate_flags));
+      uint64_t paddr = addr + tlb_data[vpn % TLB_ENTRIES].target_offset;
+      if(tr.va && !xlate_flags.is_special_access()) assert(tr.ppn == paddr >> PGSHIFT);
+      if(tr.va) assert(check_tlb_permission_data(tr.pte, LOAD));
+      if(is_memory(paddr)) flexicas::read(paddr, core, false);
+    }
 
     if (unlikely(proc && proc->get_log_commits_enabled()))
       proc->state.log_mem_read.push_back(std::make_tuple(addr, 0, sizeof(T)));
@@ -159,11 +162,13 @@ public:
       store_slow_path(addr, sizeof(T), (const uint8_t*)&target_val, xlate_flags, true, false);
     }
 
-    auto tr = tlb_d->translate(latency, vpn, generate_access_info(addr, STORE, xlate_flags));
-    uint64_t paddr = addr + tlb_data[vpn % TLB_ENTRIES].target_offset;
-    if(tr.va && !xlate_flags.is_special_access()) assert(tr.ppn == paddr >> PGSHIFT);
-    if(tr.va) assert(check_tlb_permission_data(tr.pte, STORE));
-    if(is_memory(paddr)) flexicas::write(paddr, core);
+    if(proc) {
+      auto tr = tlb_d->translate(vpn, generate_access_info(addr, STORE, xlate_flags));
+      uint64_t paddr = addr + tlb_data[vpn % TLB_ENTRIES].target_offset;
+      if(tr.va && !xlate_flags.is_special_access()) assert(tr.ppn == paddr >> PGSHIFT);
+      if(tr.va) assert(check_tlb_permission_data(tr.pte, STORE));
+      if(is_memory(paddr)) flexicas::write(paddr, core);
+    }
 
     if (unlikely(proc && proc->get_log_commits_enabled()))
       proc->state.log_mem_write.push_back(std::make_tuple(addr, val, sizeof(T)));
@@ -383,6 +388,12 @@ public:
     return target_big_endian? target_endian<T>::to_be(n) : target_endian<T>::to_le(n);
   }
 
+  void register_mems(const std::vector<std::pair<reg_t,  abstract_mem_t*>> &mems) {
+    for(auto m:mems) {
+      mem_regions.push_back(std::make_pair(m.first, m.second->size()));
+    }
+  }
+
   void set_cache_blocksz(reg_t size)
   {
     blocksz = size;
@@ -411,6 +422,7 @@ private:
   reg_t tlb_store_tag[TLB_ENTRIES];
 
   // the hardware TLB
+  std::list<std::pair<uint64_t, uint64_t>> mem_regions;
   HardTLBBase *tlb_i;      // instruction TLB
   HardTLBBase *tlb_d;      // data TLB
 
@@ -487,6 +499,13 @@ private:
     }
   }
 
+  bool is_memory(uint64_t paddr) const {
+    for(auto m:mem_regions)
+      if(paddr >= m.first && paddr < m.first+m.second)
+        return true;
+    return false;
+  }
+
   bool check_tlb_permission_insn(reg_t pte) {
     reg_t mode = proc->state.prv;
     assert(get_field(pte, PTE_V) && get_field(pte, PTE_X));
@@ -517,8 +536,8 @@ private:
     result = fetch_slow_path(addr);
 
     // simulate the hardware TLB
-    if(tlb_i) {
-      auto tr = tlb_i->translate(latency, vpn, generate_access_info(addr, FETCH, {false, false, false}));
+    if(proc) {
+      auto tr = tlb_i->translate(vpn, generate_access_info(addr, FETCH, {false, false, false}));
       if(tr.va) assert(tr.ppn == (addr + result.target_offset) >> PGSHIFT);
       if(tr.va) assert(check_tlb_permission_insn(tr.pte));
     }

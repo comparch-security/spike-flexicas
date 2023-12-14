@@ -44,7 +44,7 @@ public:
     entries.resize(nset);
     order.resize(nset);
   }
-  HardTLBEntry translate(uint64_t *latency, uint64_t vpn, mem_access_info_t access_info);
+  HardTLBEntry translate(uint64_t vpn, mem_access_info_t access_info);
   void refill(uint64_t vpn, uint64_t ppn, uint64_t pte);
   void shootdown(uint64_t vpn);
   void flush();

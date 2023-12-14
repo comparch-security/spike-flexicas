@@ -102,6 +102,7 @@ sim_t::sim_t(const cfg_t *cfg, bool halted,
     procs[i] = new processor_t(&isa, cfg, this, cfg->hartids()[i], i, halted,
                                log_file.get(), sout_);
     harts[cfg->hartids()[i]] = procs[i];
+    procs[i]->get_mmu()->register_mems(mems);
   }
 
   // When running without using a dtb, skip the fdt-based configuration steps

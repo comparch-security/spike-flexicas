@@ -7,7 +7,7 @@ void HardTLBBase::flush() {
   }
 }
 
-HardTLBEntry HardTLBBase::translate(uint64_t *latency, uint64_t vpn, mem_access_info_t access_info) {
+HardTLBEntry HardTLBBase::translate(uint64_t vpn, mem_access_info_t access_info) {
   uint32_t idx = vpn % nset;
   if(!entries[idx].count(vpn)) {
     // walk
@@ -18,7 +18,7 @@ HardTLBEntry HardTLBBase::translate(uint64_t *latency, uint64_t vpn, mem_access_
 
     // emulate the L1 cache access
     for(int i = 0; i < mmu->tlb_walk_record.levels; i++)
-      flexicas::read(core, mmu->tlb_walk_record.ptes[i]);
+      flexicas::read(mmu->tlb_walk_record.ptes[i], core);
 
     // refill
     if(mmu->tlb_walk_record.levels != 0) { // not a physical address
