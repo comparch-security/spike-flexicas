@@ -1,30 +1,25 @@
 #include "mmu.h"
 
 void HardTLBBase::flush() {
-  for(int i = 0; i < nset; i++) {
+  for(unsigned int i = 0; i < nset; i++) {
     entries[i].clear();
     order[i].clear();
   }
 }
 
 HardTLBEntry HardTLBBase::translate(uint64_t *latency, uint64_t vpn, mem_access_info_t access_info) {
-  access_type type = access_info.type;
-  reg_t mode = (reg_t) access_info.effective_priv;
-  // reg_t vpn = access_info.vaddr >> PGSHIFT;
-  
   uint32_t idx = vpn % nset;
   if(!entries[idx].count(vpn)) {
     // walk
     if(mmu->tlb_walk_record.levels == 0 || mmu->tlb_walk_record.vpn != vpn)
-      // mmu->walk(vpn << PGSHIFT, type, mode);
       mmu->walk(access_info);
     else
       walk_hit_n++;
 
     // emulate the L1 cache access
-    for(int i = 0; i < mmu->tlb_walk_record.levels; i++){
-      cache->read(mmu->tlb_walk_record.ptes[i], latency);
-    }
+    for(int i = 0; i < mmu->tlb_walk_record.levels; i++)
+      flexicas::read(core, mmu->tlb_walk_record.ptes[i]);
+
     // refill
     if(mmu->tlb_walk_record.levels != 0) { // not a physical address
       miss_n++;

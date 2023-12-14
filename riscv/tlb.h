@@ -1,11 +1,11 @@
 // simulate the hardware TLB in actual hardware processors
 
 #ifndef _RISCV_TLB_H
-#define _TISCV_TLB_H
+#define _RISCV_TLB_H
 
 #include <map>
 #include <vector>
-
+#include <list>
 
 struct mem_access_info_t; 
 
@@ -28,19 +28,18 @@ struct WalkRecord {
 class HardTLBBase
 {
 protected:
+  const int core;
   std::vector<std::map<uint64_t, HardTLBEntry> > entries;
   std::vector<std::list<uint64_t> > order;
   uint32_t nset, nway;  // number of sets and ways
   mmu_t *mmu;           // the pe core MMU
-  CoreInterface *cache; // the L1 cache
 
 public:
   uint64_t access_n, miss_n, hit_n, walk_hit_n; // pfcs
 
- HardTLBBase(mmu_t *mmu, CoreInterface *cache, uint32_t nway, uint32_t nset = 1)
-  : nset(nset), nway(nway),
-    mmu(mmu), cache(cache),
-    access_n(0), miss_n(0), hit_n(0), walk_hit_n(0)
+  HardTLBBase(int core, mmu_t *mmu, uint32_t nway, uint32_t nset = 1)
+    : core(core), nset(nset), nway(nway), mmu(mmu),
+      access_n(0), miss_n(0), hit_n(0), walk_hit_n(0)
   {
     entries.resize(nset);
     order.resize(nset);

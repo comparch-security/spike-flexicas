@@ -96,10 +96,10 @@ sim_t::sim_t(const cfg_t *cfg, bool halted,
   }
 #endif
 
-  debug_mmu = new mmu_t(this, cfg->endianness, NULL);
+  debug_mmu = new mmu_t(this, cfg->endianness, NULL, -1);
 
   for (size_t i = 0; i < cfg->nprocs(); i++) {
-    procs[i] = new processor_t(&isa, cfg, this, cfg->hartids()[i], halted,
+    procs[i] = new processor_t(&isa, cfg, this, cfg->hartids()[i], i, halted,
                                log_file.get(), sout_);
     harts[cfg->hartids()[i]] = procs[i];
   }

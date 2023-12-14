@@ -9,12 +9,14 @@
 #include "simif.h"
 #include "processor.h"
 #include "memtracer.h"
+#include "tlb.h"
+#include "flexicas.h"
 #include "../fesvr/byteorder.h"
 #include "triggers.h"
 #include "cfg.h"
 #include <stdlib.h>
 #include <vector>
-#include "tlb.h"
+
 // virtual memory configuration
 #define PGSHIFT 12
 const reg_t PGSIZE = 1 << PGSHIFT;
@@ -90,8 +92,9 @@ private:
   }
 
 public:
-  mmu_t(simif_t* sim, endianness_t endianness, processor_t* proc);
+  mmu_t(simif_t* sim, endianness_t endianness, processor_t* proc, int index);
   ~mmu_t();
+
   WalkRecord tlb_walk_record;  // record the last page walk for the hardware TLB optimization
 
   template<typename T>
@@ -107,15 +110,11 @@ public:
       load_slow_path(addr, sizeof(T), (uint8_t*)&res, xlate_flags);
     }
 
-    if(tlb_d) { 
-      auto tr = tlb_d->translate(latency, vpn, generate_access_info(addr, LOAD, xlate_flags)); 
-      uint64_t paddr = addr + tlb_data[vpn % TLB_ENTRIES].target_offset; 
-      if(tr.va && !xlate_flags.is_special_access()) assert(tr.ppn == paddr >> PGSHIFT); 
-      if(tr.va) assert(check_tlb_permission_data(tr.pte, LOAD)); 
-      if(cache_d && is_memory(paddr)){ 
-        cache_d->read(paddr, latency); 
-      } 
-    } 
+    auto tr = tlb_d->translate(latency, vpn, generate_access_info(addr, LOAD, xlate_flags));
+    uint64_t paddr = addr + tlb_data[vpn % TLB_ENTRIES].target_offset;
+    if(tr.va && !xlate_flags.is_special_access()) assert(tr.ppn == paddr >> PGSHIFT);
+    if(tr.va) assert(check_tlb_permission_data(tr.pte, LOAD));
+    if(is_memory(paddr)) flexicas::read(paddr, core, false);
 
     if (unlikely(proc && proc->get_log_commits_enabled()))
       proc->state.log_mem_read.push_back(std::make_tuple(addr, 0, sizeof(T)));
@@ -160,18 +159,11 @@ public:
       store_slow_path(addr, sizeof(T), (const uint8_t*)&target_val, xlate_flags, true, false);
     }
 
-    if(tlb_d) { 
-      auto tr = tlb_d->translate(latency, vpn, generate_access_info(addr, STORE, xlate_flags)); 
-      uint64_t paddr = addr + tlb_data[vpn % TLB_ENTRIES].target_offset; 
-      if(tr.va && !xlate_flags.is_special_access()) assert(tr.ppn == paddr >> PGSHIFT); 
-      if(tr.va) assert(check_tlb_permission_data(tr.pte, STORE)); 
-      if(cache_d && is_memory(paddr)){ 
-        uint64_t darray[8] = {};
-        Data64B data;
-        data.write(darray);
-        cache_d->write(paddr, &data, latency); 
-      } 
-    } 
+    auto tr = tlb_d->translate(latency, vpn, generate_access_info(addr, STORE, xlate_flags));
+    uint64_t paddr = addr + tlb_data[vpn % TLB_ENTRIES].target_offset;
+    if(tr.va && !xlate_flags.is_special_access()) assert(tr.ppn == paddr >> PGSHIFT);
+    if(tr.va) assert(check_tlb_permission_data(tr.pte, STORE));
+    if(is_memory(paddr)) flexicas::write(paddr, core);
 
     if (unlikely(proc && proc->get_log_commits_enabled()))
       proc->state.log_mem_write.push_back(std::make_tuple(addr, val, sizeof(T)));
@@ -319,9 +311,8 @@ public:
     int length = insn_length(insn);
 
     uint64_t paddr = addr + tlb_entry.target_offset;
-    if(cache_i && is_memory(paddr)){
-      cache_i->read(paddr, latency); // normally more than one instruction is readed per refill
-    }
+    if(is_memory(paddr)) flexicas::read(paddr, core); // normally more than one instruction is readed per refill
+
     if (likely(length == 4)) {
       insn |= (insn_bits_t)from_le(*(const uint16_t*)translate_insn_addr_to_host(addr + 2)) << 16;
     } else if (length == 2) {
@@ -350,9 +341,7 @@ public:
     if (likely(entry->tag == addr)) {
       auto tlb_entry = translate_insn_addr(addr); // must have hit in software tlb
       uint64_t paddr = addr + tlb_entry.target_offset;
-      if(cache_i && is_memory(paddr)){
-        cache_i->read(paddr, latency);
-      }
+      if(is_memory(paddr)) flexicas::read(paddr, core);
       return entry;
     }
     return refill_icache(addr, entry);
@@ -402,6 +391,7 @@ public:
 private:
   simif_t* sim;
   processor_t* proc;
+  int core; // the processor index used to identify the L1 cache
   memtracer_list_t tracer;
   reg_t load_reservation_address;
   uint16_t fetch_temp;
@@ -419,6 +409,10 @@ private:
   reg_t tlb_insn_tag[TLB_ENTRIES];
   reg_t tlb_load_tag[TLB_ENTRIES];
   reg_t tlb_store_tag[TLB_ENTRIES];
+
+  // the hardware TLB
+  HardTLBBase *tlb_i;      // instruction TLB
+  HardTLBBase *tlb_d;      // data TLB
 
   // finish translation on a TLB miss and update the TLB
   tlb_entry_t refill_tlb(reg_t vaddr, reg_t paddr, char* host_addr, access_type type);

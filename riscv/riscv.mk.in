@@ -6,6 +6,7 @@ riscv_subproject_deps = \
 	disasm \
 	fesvr \
 	softfloat \
+	flexicas \
 
 riscv_CFLAGS = -fPIC
 
@@ -44,7 +45,7 @@ riscv_install_hdrs = \
 	trap.h \
 	triggers.h \
 	vector_unit.h \
-  tlb.h \
+	tlb.h \
 
 riscv_precompiled_hdrs = \
 	insn_template.h \
@@ -73,7 +74,7 @@ riscv_srcs = \
 	vector_unit.cc \
 	socketif.cc \
 	cfg.cc \
-  tlb.cc \
+	tlb.cc \
 	$(riscv_gen_srcs) \
 
 riscv_test_srcs = \
