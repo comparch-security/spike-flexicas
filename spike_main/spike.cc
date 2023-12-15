@@ -539,8 +539,7 @@ int main(int argc, char** argv)
     return 0;
   }
 
-  flexicas::init();
-  assert(nprocs() == flexicas::ncore());
+  flexicas::init(nprocs());
 
   for (size_t i = 0; i < cfg.nprocs(); i++)
   {

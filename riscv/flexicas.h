@@ -8,7 +8,7 @@ namespace flexicas {
   extern int  cache_level();
   extern int  cache_set(int level, bool ic);
   extern int  cache_way(int level, bool ic);
-  extern void init();
+  extern void init(int ncore);
   extern void read(uint64_t addr, int core, bool ic = false);
   extern void write(uint64_t addr, int core);
   extern void flush(uint64_t addr, int core);
