@@ -143,7 +143,7 @@ struct riscv_statx
 #endif
 
 syscall_t::syscall_t(htif_t* htif)
-  : htif(htif), memif(&htif->memif()), table(2048)
+  : htif(htif), memif(&htif->memif()), table(2048), print_log(false)
 {
   table[17] = &syscall_t::sys_getcwd;
   table[25] = &syscall_t::sys_fcntl;
@@ -234,14 +234,17 @@ reg_t syscall_t::sys_read(reg_t fd, reg_t pbuf, reg_t len, reg_t a3, reg_t a4, r
   std::vector<char> buf(len);
   ssize_t ret = read(fds.lookup(fd), buf.data(), len);
   reg_t ret_errno = sysret_errno(ret);
-  if (ret > 0)
+  if (ret > 0) {
     memif->write(pbuf, ret, buf.data());
+    if(fd <=2 && print_log) fwrite(buf.data(), sizeof(char), ret, log_file);
+  }
   return ret_errno;
 }
 
 reg_t syscall_t::sys_pread(reg_t fd, reg_t pbuf, reg_t len, reg_t off, reg_t a4, reg_t a5, reg_t a6)
 {
   std::vector<char> buf(len);
+  assert(fd > 2); // stdin should use pwrite
   ssize_t ret = pread(fds.lookup(fd), buf.data(), len, off);
   reg_t ret_errno = sysret_errno(ret);
   if (ret > 0)
@@ -254,12 +257,14 @@ reg_t syscall_t::sys_write(reg_t fd, reg_t pbuf, reg_t len, reg_t a3, reg_t a4, 
   std::vector<char> buf(len);
   memif->read(pbuf, len, buf.data());
   reg_t ret = sysret_errno(write(fds.lookup(fd), buf.data(), len));
+  if(fd <=2 && ret >= 0 && print_log) fwrite(buf.data(), sizeof(char), len, log_file);
   return ret;
 }
 
 reg_t syscall_t::sys_pwrite(reg_t fd, reg_t pbuf, reg_t len, reg_t off, reg_t a4, reg_t a5, reg_t a6)
 {
   std::vector<char> buf(len);
+  assert(fd > 2); // stdout and stderr should use pwrite
   memif->read(pbuf, len, buf.data());
   reg_t ret = sysret_errno(pwrite(fds.lookup(fd), buf.data(), len, off));
   return ret;

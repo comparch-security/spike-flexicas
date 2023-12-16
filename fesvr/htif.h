@@ -74,6 +74,11 @@ class htif_t : public chunked_memif_t
   // Given an address, return symbol from addr2symbol map
   const char* get_symbol(uint64_t addr);
 
+  // ask syscall to generate command line log
+  void configure_print_log(bool enable_print_log, FILE *log_file) {
+    syscall_proxy.configure_print_log(enable_print_log, log_file);
+  }
+
  private:
   void parse_arguments(int argc, char ** argv);
   void register_devices();

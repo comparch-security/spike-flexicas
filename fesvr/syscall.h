@@ -31,6 +31,10 @@ class syscall_t : public device_t
   ~syscall_t();
 
   void set_chroot(const char* where);
+  void configure_print_log(bool enable_print_log, FILE *file) {
+    print_log = enable_print_log;
+    log_file = file;
+  }
   
  private:
   const char* identity() { return "syscall_proxy"; }
@@ -70,6 +74,9 @@ class syscall_t : public device_t
   reg_t sys_getcwd(reg_t, reg_t, reg_t, reg_t, reg_t, reg_t, reg_t);
   reg_t sys_getmainvars(reg_t, reg_t, reg_t, reg_t, reg_t, reg_t, reg_t);
   reg_t sys_chdir(reg_t, reg_t, reg_t, reg_t, reg_t, reg_t, reg_t);
+
+  bool print_log;
+  FILE *log_file;
 };
 
 #endif

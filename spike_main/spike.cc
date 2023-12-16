@@ -39,6 +39,7 @@ static void help(int exit_code = 1)
   fprintf(stderr, "  -h, --help            Print this help message\n");
   fprintf(stderr, "  -H                    Start halted, allowing a debugger to connect\n");
   fprintf(stderr, "  --log=<name>          File name for option -l\n");
+  fprintf(stderr, "  --print-log=<name>    Log file for recording the command line input/output.\n");
   fprintf(stderr, "  --debug-cmd=<name>    Read commands from file (use with -d)\n");
   fprintf(stderr, "  --isa=<name>          RISC-V ISA string [default %s]\n", DEFAULT_ISA);
   fprintf(stderr, "  --pmpregions=<n>      Number of PMP regions [default 16]\n");
@@ -325,6 +326,7 @@ int main(int argc, char** argv)
   bool halted = false;
   bool histogram = false;
   bool log = false;
+  bool print_log = false;
   bool UNUSED socket = false;  // command line option -s
   bool dump_dts = false;
   bool dtb_enabled = true;
@@ -337,6 +339,7 @@ int main(int argc, char** argv)
   bool log_cache = false;
   bool log_commits = false;
   const char *log_path = nullptr;
+  const char *print_log_path = nullptr;
   std::vector<std::function<extension_t*()>> extensions;
   const char* initrd = NULL;
   const char* dtb_file = NULL;
@@ -447,6 +450,8 @@ int main(int argc, char** argv)
                 [&](const char UNUSED *s){log_commits = true;});
   parser.option(0, "log", 1,
                 [&](const char* s){log_path = s;});
+  parser.option(0, "print-log", 1,
+                [&](const char* s){print_log_path = s; print_log = true;});
   FILE *cmd_file = NULL;
   parser.option(0, "debug-cmd", 1, [&](const char* s){
      if ((cmd_file = fopen(s, "r"))==NULL) {
@@ -523,7 +528,7 @@ int main(int argc, char** argv)
   }
 
   sim_t s(&cfg, halted,
-      mems, plugin_device_factories, htif_args, dm_config, log_path, dtb_enabled, dtb_file,
+          mems, plugin_device_factories, htif_args, dm_config, log_path, print_log_path, dtb_enabled, dtb_file,
       socket,
       cmd_file);
   std::unique_ptr<remote_bitbang_t> remote_bitbang((remote_bitbang_t *) NULL);
@@ -549,7 +554,7 @@ int main(int argc, char** argv)
   }
 
   s.set_debug(debug);
-  s.configure_log(log, log_commits);
+  s.configure_log(log, print_log, log_commits);
   s.set_histogram(histogram);
 
   auto return_code = s.run();

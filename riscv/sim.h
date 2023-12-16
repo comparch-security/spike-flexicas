@@ -29,7 +29,7 @@ public:
         std::vector<std::pair<reg_t, abstract_mem_t*>> mems,
         std::vector<const device_factory_t*> plugin_device_factories,
         const std::vector<std::string>& args,
-        const debug_module_config_t &dm_config, const char *log_path,
+        const debug_module_config_t &dm_config, const char *log_path, const char *print_log_path,
         bool dtb_enabled, const char *dtb_file,
         bool socket_enabled,
         FILE *cmd_file); // needed for command line option --cmd
@@ -43,9 +43,10 @@ public:
 
   // Configure logging
   //
-  // If enable_log is true, an instruction trace will be generated. If
-  // enable_commitlog is true, so will the commit results
-  void configure_log(bool enable_log, bool enable_commitlog);
+  // If enable_log is true, an instruction trace will be generated.
+  // If enable_print_log is true, the command line print will be logged.
+  // If enable_commitlog is true, so will the commit results
+  void configure_log(bool enable_log, bool enable_print_log, bool enable_commitlog);
 
   void set_procs_debug(bool value);
   void set_remote_bitbang(remote_bitbang_t* remote_bitbang) {
@@ -80,6 +81,7 @@ private:
   std::shared_ptr<plic_t> plic;
   bus_t bus;
   log_file_t log_file;
+  log_file_t print_log_file;
 
   FILE *cmd_file; // pointer to debug command input file
 

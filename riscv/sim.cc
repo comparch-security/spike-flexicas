@@ -41,7 +41,7 @@ sim_t::sim_t(const cfg_t *cfg, bool halted,
              std::vector<const device_factory_t*> plugin_device_factories,
              const std::vector<std::string>& args,
              const debug_module_config_t &dm_config,
-             const char *log_path,
+             const char *log_path, const char *print_log_path,
              bool dtb_enabled, const char *dtb_file,
              bool socket_enabled,
              FILE *cmd_file) // needed for command line option --cmd
@@ -52,6 +52,7 @@ sim_t::sim_t(const cfg_t *cfg, bool halted,
     procs(std::max(cfg->nprocs(), size_t(1))),
     dtb_enabled(dtb_enabled),
     log_file(log_path),
+    print_log_file(print_log_path),
     cmd_file(cmd_file),
     sout_(nullptr),
     current_step(0),
@@ -295,9 +296,11 @@ void sim_t::set_histogram(bool value)
   }
 }
 
-void sim_t::configure_log(bool enable_log, bool enable_commitlog)
+void sim_t::configure_log(bool enable_log, bool enable_print_log, bool enable_commitlog)
 {
   log = enable_log;
+
+  htif_t::configure_print_log(enable_print_log, print_log_file.get());
 
   if (!enable_commitlog)
     return;
