@@ -316,7 +316,7 @@ public:
     int length = insn_length(insn);
 
     uint64_t paddr = addr + tlb_entry.target_offset;
-    if(is_memory(paddr)) flexicas::read(paddr, core); // normally more than one instruction is readed per refill
+    if(is_memory(paddr)) flexicas::read(paddr, core, true); // normally more than one instruction is readed per refill
 
     if (likely(length == 4)) {
       insn |= (insn_bits_t)from_le(*(const uint16_t*)translate_insn_addr_to_host(addr + 2)) << 16;
@@ -346,7 +346,7 @@ public:
     if (likely(entry->tag == addr)) {
       auto tlb_entry = translate_insn_addr(addr); // must have hit in software tlb
       uint64_t paddr = addr + tlb_entry.target_offset;
-      if(is_memory(paddr)) flexicas::read(paddr, core);
+      if(is_memory(paddr)) flexicas::read(paddr, core, true);
       return entry;
     }
     return refill_icache(addr, entry);
