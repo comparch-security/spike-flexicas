@@ -5,6 +5,8 @@
 #include <signal.h>
 #include <stdlib.h>
 
+static FILE *logf = nullptr;
+
 class canonical_termios_t
 {
  public:
@@ -43,11 +45,18 @@ int canonical_terminal_t::read()
 
   unsigned char ch;
   ret = ::read(0, &ch, 1);
+  if(logf && ret) fputc(ch, logf);
   return ret <= 0 ? -1 : ch;
 }
 
 void canonical_terminal_t::write(char ch)
 {
+  if(logf) fputc(ch, logf);
   if (::write(1, &ch, 1) != 1)
     abort();
+}
+
+void canonical_terminal_t::log(FILE *log_file)
+{
+  logf = log_file;
 }

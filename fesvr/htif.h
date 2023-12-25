@@ -7,6 +7,7 @@
 #include "syscall.h"
 #include "device.h"
 #include "byteorder.h"
+#include "term.h"
 #include <string.h>
 #include <map>
 #include <vector>
@@ -77,6 +78,7 @@ class htif_t : public chunked_memif_t
   // ask syscall to generate command line log
   void configure_print_log(bool enable_print_log, FILE *log_file) {
     syscall_proxy.configure_print_log(enable_print_log, log_file);
+    if(enable_print_log) canonical_terminal_t::log(log_file);
   }
 
  private:
