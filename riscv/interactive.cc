@@ -8,6 +8,7 @@
 #include "mmu.h"
 #include "vector_unit.h"
 #include "socketif.h"
+#include "flexicas.h"
 #include <sys/mman.h>
 #include <termios.h>
 #include <map>
@@ -423,6 +424,7 @@ void sim_t::interactive_run(const std::string& cmd, const std::vector<std::strin
 
 void sim_t::interactive_quit(const std::string& cmd, const std::vector<std::string>& args)
 {
+  flexicas::exit();
   exit(0);
 }
 

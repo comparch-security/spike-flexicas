@@ -562,5 +562,6 @@ int main(int argc, char** argv)
   for (auto& mem : mems)
     delete mem.second;
 
+  flexicas::exit();
   return return_code;
 }

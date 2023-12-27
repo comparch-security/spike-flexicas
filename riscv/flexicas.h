@@ -13,6 +13,7 @@ namespace flexicas {
   extern void write(uint64_t addr, int core);
   extern void flush(uint64_t addr, int core);
   extern void writeback(uint64_t addr, int core);
+  extern void exit();
 }
 
 #endif
