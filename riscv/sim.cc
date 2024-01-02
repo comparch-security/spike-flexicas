@@ -38,7 +38,7 @@ extern device_factory_t* ns16550_factory;
 
 sim_t::sim_t(const cfg_t *cfg, bool halted,
              std::vector<std::pair<reg_t, abstract_mem_t*>> mems,
-             std::vector<const device_factory_t*> plugin_device_factories,
+             std::vector<device_factory_t*> plugin_device_factories,
              const std::vector<std::string>& args,
              const debug_module_config_t &dm_config,
              const char *log_path, const char *print_log_path,
@@ -46,7 +46,7 @@ sim_t::sim_t(const cfg_t *cfg, bool halted,
              bool socket_enabled,
              FILE *cmd_file) // needed for command line option --cmd
   : htif_t(args),
-    isa(cfg->isa(), cfg->priv()),
+    isa(cfg->isa, cfg->priv),
     cfg(cfg),
     mems(mems),
     procs(std::max(cfg->nprocs(), size_t(1))),
@@ -100,9 +100,9 @@ sim_t::sim_t(const cfg_t *cfg, bool halted,
   debug_mmu = new mmu_t(this, cfg->endianness, NULL, -1);
 
   for (size_t i = 0; i < cfg->nprocs(); i++) {
-    procs[i] = new processor_t(&isa, cfg, this, cfg->hartids()[i], i, halted,
+    procs[i] = new processor_t(&isa, cfg, this, cfg->hartids[i], i, halted,
                                log_file.get(), sout_);
-    harts[cfg->hartids()[i]] = procs[i];
+    harts[cfg->hartids[i]] = procs[i];
     procs[i]->get_mmu()->register_mems(mems);
   }
 
@@ -136,13 +136,13 @@ sim_t::sim_t(const cfg_t *cfg, bool halted,
     strstream << fin.rdbuf();
     dtb = strstream.str();
   } else {
-    std::pair<reg_t, reg_t> initrd_bounds = cfg->initrd_bounds();
+    std::pair<reg_t, reg_t> initrd_bounds = cfg->initrd_bounds;
     std::string device_nodes;
     for (const device_factory_t *factory : device_factories)
       device_nodes.append(factory->generate_dts(this));
     dts = make_dts(INSNS_PER_RTC_TICK, CPU_HZ,
                    initrd_bounds.first, initrd_bounds.second,
-                   cfg->bootargs(), cfg->pmpregions, cfg->pmpgranularity,
+                   cfg->bootargs, cfg->pmpregions, cfg->pmpgranularity,
                    procs, mems, device_nodes);
     dtb = dts_compile(dts);
   }
