@@ -3,7 +3,7 @@
 
 // the header file expose to spike
 
-#include <csrs.h>
+#include "csrs.h"
 
 namespace flexicas {
   static const unsigned int CSR_FLAXICAS_PFC = 0x8F0;
