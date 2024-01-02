@@ -114,7 +114,7 @@ public:
     if(proc) {
       auto tr = tlb_d->translate(vpn, generate_access_info(addr, LOAD, xlate_flags));
       uint64_t paddr = addr + tlb_data[vpn % TLB_ENTRIES].target_offset;
-      if(tr.va && !xlate_flags.is_special_access()) assert(tr.ppn == paddr >> PGSHIFT);
+      if(tr.va && !xlate_flags.is_special_access() && is_memory(paddr)) assert(tr.ppn == paddr >> PGSHIFT);
       if(tr.va) assert(check_tlb_permission_data(tr.pte, LOAD));
       if(is_memory(paddr)) flexicas::read(paddr, core, false);
     }
@@ -165,7 +165,7 @@ public:
     if(proc) {
       auto tr = tlb_d->translate(vpn, generate_access_info(addr, STORE, xlate_flags));
       uint64_t paddr = addr + tlb_data[vpn % TLB_ENTRIES].target_offset;
-      if(tr.va && !xlate_flags.is_special_access()) assert(tr.ppn == paddr >> PGSHIFT);
+      if(tr.va && !xlate_flags.is_special_access() && is_memory(paddr)) assert(tr.ppn == paddr >> PGSHIFT);
       if(tr.va) assert(check_tlb_permission_data(tr.pte, STORE));
       if(is_memory(paddr)) flexicas::write(paddr, core);
     }
