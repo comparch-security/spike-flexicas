@@ -42,6 +42,7 @@ static void help(int exit_code = 1)
   fprintf(stderr, "  -H                    Start halted, allowing a debugger to connect\n");
   fprintf(stderr, "  --log=<name>          File name for option -l\n");
   fprintf(stderr, "  --print-log=<name>    Log file for recording the command line input/output.\n");
+  fprintf(stderr, "  --pfc-log=<name>      Prefix for PFC generated log files.\n");
   fprintf(stderr, "  --debug-cmd=<name>    Read commands from file (use with -d)\n");
   fprintf(stderr, "  --isa=<name>          RISC-V ISA string [default %s]\n", DEFAULT_ISA);
   fprintf(stderr, "  --pmpregions=<n>      Number of PMP regions [default 16]\n");
@@ -342,6 +343,7 @@ int main(int argc, char** argv)
   bool log_commits = false;
   const char *log_path = nullptr;
   const char *print_log_path = nullptr;
+  const char *pfc_log_prefix = nullptr;
   std::vector<std::function<extension_t*()>> extensions;
   const char* initrd = NULL;
   const char* dtb_file = NULL;
@@ -446,6 +448,8 @@ int main(int argc, char** argv)
                 [&](const char* s){log_path = s;});
   parser.option(0, "print-log", 1,
                 [&](const char* s){print_log_path = s; print_log = true;});
+  parser.option(0, "pfc-log", 1,
+                [&](const char* s){pfc_log_prefix = s;});
   FILE *cmd_file = NULL;
   parser.option(0, "debug-cmd", 1, [&](const char* s){
      if ((cmd_file = fopen(s, "r"))==NULL) {
@@ -538,7 +542,7 @@ int main(int argc, char** argv)
     return 0;
   }
 
-  flexicas::init(nprocs());
+  flexicas::init(nprocs(), pfc_log_prefix);
 
   for (size_t i = 0; i < cfg.nprocs(); i++)
   {
