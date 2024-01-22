@@ -17,22 +17,24 @@ namespace flexicas {
   extern void flush(uint64_t addr, int core);
   extern void writeback(uint64_t addr, int core);
   extern void exit();
-  extern void csr_write(uint64_t cmd);
-  extern uint64_t csr_read();
+  extern void csr_write(uint64_t cmd, int core);
+  extern uint64_t csr_read(int core);
+  extern void bump_cycle(int step, int core);
 }
 
 class flexicas_csr_t: public csr_t {
+  int core_index;
 public:
-  flexicas_csr_t(processor_t* const proc)
-    : csr_t(proc, flexicas::CSR_FLAXICAS_PFC) {}
+  flexicas_csr_t(processor_t* const proc, int core)
+    : csr_t(proc, flexicas::CSR_FLAXICAS_PFC), core_index(core) {}
 
   virtual reg_t read() const noexcept override {
-    return flexicas::csr_read();
+    return flexicas::csr_read(core_index);
   }
 
 protected:
   virtual bool unlogged_write(const reg_t val) noexcept override {
-    flexicas::csr_write(val);
+    flexicas::csr_write(val, core_index);
     return true;
   }
 };

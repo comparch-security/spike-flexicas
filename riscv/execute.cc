@@ -5,6 +5,7 @@
 #include "mmu.h"
 #include "disasm.h"
 #include "decode_macros.h"
+#include "flexicas.h"
 #include <cassert>
 
 static void commit_log_reset(processor_t* p)
@@ -346,6 +347,7 @@ void processor_t::step(size_t n)
 
     // Model a hart whose CPI is 1.
     state.mcycle->bump(instret);
+    flexicas::bump_cycle(instret, state.core_index); // keep a copy of cycle in FlexiCAS
 
     n -= instret;
   }

@@ -74,7 +74,7 @@ typedef std::vector<std::tuple<reg_t, uint64_t, uint8_t>> commit_log_mem_t;
 // architectural state of a RISC-V hart
 struct state_t
 {
-  void reset(processor_t* const proc, reg_t max_isa);
+  void reset(processor_t* const proc, reg_t max_isa, int core_index);
 
   reg_t pc;
   regfile_t<reg_t, NXPR, true> XPR;
@@ -186,6 +186,8 @@ struct state_t
   reg_t last_inst_priv;
   int last_inst_xlen;
   int last_inst_flen;
+
+  int core_index;
 };
 
 // this class represents one processor in a RISC-V machine.
@@ -204,7 +206,7 @@ public:
   void set_histogram(bool value);
   void enable_log_commits();
   bool get_log_commits_enabled() const { return log_commits_enabled; }
-  void reset();
+  void reset(int index = -1);
   void step(size_t n); // run for n cycles
   void put_csr(int which, reg_t val);
   uint32_t get_id() const { return id; }

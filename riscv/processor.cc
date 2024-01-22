@@ -74,7 +74,7 @@ processor_t::processor_t(const isa_parser_t *isa, const cfg_t *cfg,
   set_impl(IMPL_MMU_ASID, true);
   set_impl(IMPL_MMU_VMID, true);
 
-  reset();
+  reset(index);
 }
 
 processor_t::~processor_t()
@@ -191,11 +191,13 @@ static int xlen_to_uxl(int xlen)
   abort();
 }
 
-void state_t::reset(processor_t* const proc, reg_t max_isa)
+void state_t::reset(processor_t* const proc, reg_t max_isa, int index)
 {
   pc = DEFAULT_RSTVEC;
   XPR.reset();
   FPR.reset();
+
+  if(index >= 0) core_index = index;
 
   // This assumes xlen is always max_xlen, which is true today (see
   // mstatus_csr_t::unlogged_write()):
@@ -585,7 +587,7 @@ void state_t::reset(processor_t* const proc, reg_t max_isa)
       }
   }
 
-  csrmap[flexicas::CSR_FLAXICAS_PFC] = std::make_shared<flexicas_csr_t>(proc);
+  csrmap[flexicas::CSR_FLAXICAS_PFC] = std::make_shared<flexicas_csr_t>(proc, index);
 
   serialized = false;
 
@@ -615,10 +617,10 @@ void processor_t::enable_log_commits()
   log_commits_enabled = true;
 }
 
-void processor_t::reset()
+void processor_t::reset(int core_index)
 {
   xlen = isa->get_max_xlen();
-  state.reset(this, isa->get_max_isa());
+  state.reset(this, isa->get_max_isa(), core_index);
   state.dcsr->halt = halt_on_reset;
   halt_on_reset = false;
   VU.reset();
