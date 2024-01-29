@@ -248,10 +248,11 @@ public:
 
   void clean_inval(reg_t addr, bool clean, bool inval) {
     auto base = addr & ~(blocksz - 1);
+    reg_t paddr;
     for (size_t offset = 0; offset < blocksz; offset += 1)
       check_triggers(triggers::OPERATION_STORE, base + offset, false, addr, std::nullopt);
     convert_load_traps_to_store_traps({
-      const reg_t paddr = translate(generate_access_info(addr, LOAD, {false, false, false}), 1);
+      paddr = translate(generate_access_info(addr, LOAD, {false, false, false}), 1);
       if (sim->reservable(paddr)) {
         if (tracer.interested_in_range(paddr, paddr + PGSIZE, LOAD))
           tracer.clean_invalidate(paddr, blocksz, clean, inval);
@@ -259,6 +260,15 @@ public:
         throw trap_store_access_fault((proc) ? proc->state.v : false, addr, 0, 0);
       }
     })
+    assert(blocksz == 64); // ToDo: FlexiCAS always assumes 64B cache block
+    auto tr = tlb_d->translate(addr >> PGSHIFT, generate_access_info(addr, LOAD, {false, false, false}));
+    if(tr.va && is_memory(paddr)) assert(tr.ppn == paddr >> PGSHIFT);
+    if(is_memory(paddr)) {
+      if(inval) {
+        flexicas::flush(paddr, core);
+        std::cerr << "Spike clean_inval(" << std::hex << paddr << ")" << std::endl;
+      } else      flexicas::writeback(paddr, core);
+    }
   }
 
   inline void yield_load_reservation()
