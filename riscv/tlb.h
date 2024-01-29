@@ -48,6 +48,7 @@ public:
   void refill(uint64_t vpn, uint64_t ppn, uint64_t pte);
   void shootdown(uint64_t vpn);
   void flush();
+  uint64_t translate_simple(uint64_t vaddr); // a simple translator used by pfc interface
 };
 
 #endif

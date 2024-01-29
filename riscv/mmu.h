@@ -363,6 +363,14 @@ public:
   void flush_hard_tlb_i() { if(tlb_i) tlb_i->flush(); }
   void flush_hard_tlb_d() { if(tlb_d) tlb_d->flush(); }
 
+  mem_access_info_t default_access_info(uint64_t addr) {
+    return generate_access_info(addr, LOAD, {false, false, false});
+  }
+
+  flexicas::tlb_translate_func get_translator() {
+    return std::bind(&HardTLBBase::translate_simple, tlb_d, std::placeholders::_1);
+  }
+
   void register_memtracer(memtracer_t*);
 
   int is_misaligned_enabled()

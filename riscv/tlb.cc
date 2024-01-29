@@ -63,3 +63,8 @@ void HardTLBBase::shootdown(uint64_t vpn) {
     order[idx].remove(vpn);
   }
 }
+
+uint64_t HardTLBBase::translate_simple(uint64_t vaddr) {
+  auto tr = translate(vaddr >> PGSHIFT, mmu->default_access_info(vaddr));
+  return (tr.ppn << PGSHIFT) | (vaddr & ((1ull << PGSHIFT) - 1));
+}
