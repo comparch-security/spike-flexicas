@@ -3988,7 +3988,7 @@ else $as_nop
   ac_save_c_werror_flag=$ac_c_werror_flag
    ac_c_werror_flag=yes
    ac_cv_prog_cc_g=no
-   CFLAGS="-g"
+   CFLAGS=""
    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 /* end confdefs.h.  */
 
@@ -4021,7 +4021,7 @@ then :
 
 else $as_nop
   ac_c_werror_flag=$ac_save_c_werror_flag
-	 CFLAGS="-g"
+	 CFLAGS=""
 	 cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 /* end confdefs.h.  */
 
@@ -4397,7 +4397,7 @@ else $as_nop
   ac_save_cxx_werror_flag=$ac_cxx_werror_flag
    ac_cxx_werror_flag=yes
    ac_cv_prog_cxx_g=no
-   CXXFLAGS="-g"
+   CXXFLAGS=""
    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 /* end confdefs.h.  */
 
@@ -4430,7 +4430,7 @@ then :
 
 else $as_nop
   ac_cxx_werror_flag=$ac_save_cxx_werror_flag
-	 CXXFLAGS="-g"
+	 CXXFLAGS=""
 	 cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 /* end confdefs.h.  */
 
