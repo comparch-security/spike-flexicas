@@ -123,7 +123,7 @@ bool pmpaddr_csr_t::unlogged_write(const reg_t val) noexcept {
   }
   else
     return false;
-  proc->get_mmu()->flush_tlb();
+  proc->get_mmu()->flush_tlb(false);  // do not flush the hard tlb (FlexiCAS)
   return true;
 }
 
@@ -274,7 +274,7 @@ bool pmpcfg_csr_t::unlogged_write(const reg_t val) noexcept {
       write_success = true;
     }
   }
-  proc->get_mmu()->flush_tlb();
+  proc->get_mmu()->flush_tlb(false); // do not flush the hard tlb (FlexiCAS)
   return write_success;
 }
 
@@ -320,7 +320,7 @@ bool mseccfg_csr_t::unlogged_write(const reg_t val) noexcept {
   new_val |= (val & MSECCFG_MMWP);  //MMWP is sticky
   new_val |= (val & MSECCFG_MML);   //MML is sticky
 
-  proc->get_mmu()->flush_tlb();
+  proc->get_mmu()->flush_tlb(false);  // do not flush the hard tlb (FlexiCAS)
 
   return basic_csr_t::unlogged_write(new_val);
 }
@@ -437,7 +437,7 @@ void base_status_csr_t::maybe_flush_tlb(const reg_t newval) noexcept {
       (MSTATUS_MPP | MSTATUS_MPRV
        | (has_page ? (MSTATUS_MXR | MSTATUS_SUM) : 0)
       ))
-    proc->get_mmu()->flush_tlb();
+    proc->get_mmu()->flush_tlb(false);  // do not flush the hard tlb (FlexiCAS)
 }
 
 namespace {
@@ -928,7 +928,7 @@ base_atp_csr_t::base_atp_csr_t(processor_t* const proc, const reg_t addr):
 bool base_atp_csr_t::unlogged_write(const reg_t val) noexcept {
   const reg_t newval = proc->supports_impl(IMPL_MMU) ? compute_new_satp(val) : 0;
   if (newval != read())
-    proc->get_mmu()->flush_tlb();
+    proc->get_mmu()->flush_tlb(true);
   return basic_csr_t::unlogged_write(newval);
 }
 
@@ -1169,7 +1169,7 @@ void hgatp_csr_t::verify_permissions(insn_t insn, bool write) const {
 }
 
 bool hgatp_csr_t::unlogged_write(const reg_t val) noexcept {
-  proc->get_mmu()->flush_tlb();
+  proc->get_mmu()->flush_tlb(true);
 
   reg_t mask;
   if (proc->get_const_xlen() == 32) {

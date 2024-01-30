@@ -18,6 +18,7 @@ namespace flexicas {
   extern void read(uint64_t addr, int core, bool ic = false);
   extern void write(uint64_t addr, int core);
   extern void flush(uint64_t addr, int core);
+  extern void flush_icache(int core);
   extern void writeback(uint64_t addr, int core);
   extern void exit();
   extern void csr_write(uint64_t cmd, int core, tlb_translate_func translator);

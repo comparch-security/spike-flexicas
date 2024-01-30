@@ -786,7 +786,7 @@ reg_t processor_t::legalize_privilege(reg_t prv)
 
 void processor_t::set_privilege(reg_t prv, bool virt)
 {
-  mmu->flush_tlb();
+  mmu->flush_tlb(false);
   state.prev_prv = state.prv;
   state.prev_v = state.v;
   state.prv = legalize_privilege(prv);
@@ -1190,7 +1190,7 @@ bool processor_t::store(reg_t addr, size_t len, const uint8_t* bytes)
 
 void processor_t::trigger_updated(const std::vector<triggers::trigger_t *> &triggers)
 {
-  mmu->flush_tlb();
+  mmu->flush_tlb(false);
   mmu->check_triggers_fetch = false;
   mmu->check_triggers_load = false;
   mmu->check_triggers_store = false;

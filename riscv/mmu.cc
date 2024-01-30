@@ -23,7 +23,7 @@ mmu_t::mmu_t(simif_t* sim, endianness_t endianness, processor_t* proc, int core)
     tlb_i = new HardTLBBase(core, this, 8);
     tlb_d = new HardTLBBase(core, this, 8);
   }
-  flush_tlb();
+  flush_tlb(false);
   yield_load_reservation();
 }
 
@@ -35,19 +35,20 @@ mmu_t::~mmu_t()
   }
 }
 
-void mmu_t::flush_icache()
+void mmu_t::flush_icache(bool hard)
 {
   for (size_t i = 0; i < ICACHE_ENTRIES; i++)
     icache[i].tag = -1;
+  if(proc && hard) flexicas::flush_icache(core);
 }
 
-void mmu_t::flush_tlb()
+void mmu_t::flush_tlb(bool hard)
 {
   memset(tlb_insn_tag, -1, sizeof(tlb_insn_tag));
   memset(tlb_load_tag, -1, sizeof(tlb_load_tag));
   memset(tlb_store_tag, -1, sizeof(tlb_store_tag));
-
-  flush_icache();
+  if(proc && hard) { tlb_i->flush(); tlb_d->flush(); }
+  flush_icache(hard);
 }
 
 void throw_access_exception(bool virt, reg_t addr, access_type type)
@@ -192,7 +193,7 @@ void mmu_t::check_triggers(triggers::operation_t operation, reg_t address, bool 
       case triggers::TIMING_AFTER:
         // We want to take this exception on the next instruction.  We check
         // whether to do so in the I$ refill path, so flush the I$.
-        flush_icache();
+        flush_icache(false);
         matched_trigger = new triggers::matched_t(operation, tval, match->action, virt);
     }
 }
@@ -594,6 +595,6 @@ reg_t mmu_t::walk(mem_access_info_t access_info)
 
 void mmu_t::register_memtracer(memtracer_t* t)
 {
-  flush_tlb();
+  flush_tlb(false);
   tracer.hook(t);
 }

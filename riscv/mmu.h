@@ -264,10 +264,8 @@ public:
     auto tr = tlb_d->translate(addr >> PGSHIFT, generate_access_info(addr, LOAD, {false, false, false}));
     if(tr.va && is_memory(paddr)) assert(tr.ppn == paddr >> PGSHIFT);
     if(is_memory(paddr)) {
-      if(inval) {
-        flexicas::flush(paddr, core);
-        std::cerr << "Spike clean_inval(" << std::hex << paddr << ")" << std::endl;
-      } else      flexicas::writeback(paddr, core);
+      if(inval)   flexicas::flush(paddr, core);
+      else      flexicas::writeback(paddr, core);
     }
   }
 
@@ -368,10 +366,8 @@ public:
     return refill_icache(addr, &entry)->data;
   }
 
-  void flush_tlb();
-  void flush_icache();
-  void flush_hard_tlb_i() { if(tlb_i) tlb_i->flush(); }
-  void flush_hard_tlb_d() { if(tlb_d) tlb_d->flush(); }
+  void flush_tlb(bool hard);
+  void flush_icache(bool hard);
 
   mem_access_info_t default_access_info(uint64_t addr) {
     return generate_access_info(addr, LOAD, {false, false, false});
