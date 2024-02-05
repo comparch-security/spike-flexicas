@@ -439,6 +439,7 @@ private:
   std::list<std::pair<uint64_t, uint64_t>> mem_regions;
   HardTLBBase *tlb_i;      // instruction TLB
   HardTLBBase *tlb_d;      // data TLB
+  HardTLBBase *tlb_l2;     // shared L2 TLB
 
   // finish translation on a TLB miss and update the TLB
   tlb_entry_t refill_tlb(reg_t vaddr, reg_t paddr, char* host_addr, access_type type);

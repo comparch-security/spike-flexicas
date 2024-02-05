@@ -7,7 +7,7 @@
 #include "processor.h"
 
 mmu_t::mmu_t(simif_t* sim, endianness_t endianness, processor_t* proc, int core)
-  : sim(sim), proc(proc), core(core), tlb_i(nullptr), tlb_d(nullptr),
+  : sim(sim), proc(proc), core(core), tlb_i(nullptr), tlb_d(nullptr), tlb_l2(nullptr),
 #ifdef RISCV_ENABLE_DUAL_ENDIAN
   target_big_endian(endianness == endianness_big),
 #endif
@@ -20,8 +20,10 @@ mmu_t::mmu_t(simif_t* sim, endianness_t endianness, processor_t* proc, int core)
   assert(endianness == endianness_little);
 #endif
   if(proc) {
-    tlb_i = new HardTLBBase(core, this, 8);
-    tlb_d = new HardTLBBase(core, this, 8);
+    // according to Coffee Lake (Intel Gen 9) [Tatar2022]
+    tlb_l2 = new HardTLBBase(core, this, 12, 128);
+    tlb_i  = new HardTLBBase(core, this, 8, 8,  tlb_l2);
+    tlb_d  = new HardTLBBase(core, this, 4, 16, tlb_l2);
   }
   flush_tlb(false);
   yield_load_reservation();
@@ -30,6 +32,7 @@ mmu_t::mmu_t(simif_t* sim, endianness_t endianness, processor_t* proc, int core)
 mmu_t::~mmu_t()
 {
   if(proc) {
+    delete tlb_l2;
     delete tlb_i;
     delete tlb_d;
   }
