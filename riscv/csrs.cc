@@ -317,9 +317,11 @@ bool mseccfg_csr_t::unlogged_write(const reg_t val) noexcept {
     new_val |= (val & MSECCFG_RLB);
   }
 
+  //reg_t old_val = new_val;
   new_val |= (val & MSECCFG_MMWP);  //MMWP is sticky
   new_val |= (val & MSECCFG_MML);   //MML is sticky
 
+  //proc->get_mmu()->flush_tlb(old_val != new_val);  // conditional flush the hard tlb (FlexiCAS)
   proc->get_mmu()->flush_tlb(false);  // do not flush the hard tlb (FlexiCAS)
 
   return basic_csr_t::unlogged_write(new_val);
@@ -437,7 +439,7 @@ void base_status_csr_t::maybe_flush_tlb(const reg_t newval) noexcept {
       (MSTATUS_MPP | MSTATUS_MPRV
        | (has_page ? (MSTATUS_MXR | MSTATUS_SUM) : 0)
       ))
-    proc->get_mmu()->flush_tlb(false);  // do not flush the hard tlb (FlexiCAS)
+    proc->get_mmu()->flush_tlb(true);
 }
 
 namespace {
