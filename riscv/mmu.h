@@ -546,9 +546,8 @@ private:
   inline tlb_entry_t translate_insn_addr(reg_t addr) {
     reg_t vpn = addr >> PGSHIFT;
     tlb_entry_t result;
-    if (likely(tlb_insn_tag[vpn % TLB_ENTRIES] == vpn))
-      result = tlb_data[vpn % TLB_ENTRIES];
-    result = fetch_slow_path(addr);
+    if (likely(tlb_insn_tag[vpn % TLB_ENTRIES] == vpn)) result = tlb_data[vpn % TLB_ENTRIES];
+    else result = fetch_slow_path(addr);
 
     // simulate the hardware TLB
     if(proc) {
