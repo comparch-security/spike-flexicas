@@ -189,48 +189,6 @@ struct state_t
   int last_inst_flen;
 
   elp_t elp;
-};
-
-class opcode_cache_entry_t {
- public:
-  opcode_cache_entry_t()
-  {
-    reset();
-  }
-
-  void reset()
-  {
-    for (size_t i = 0; i < associativity; i++) {
-      tag[i] = 0;
-      contents[i] = &insn_desc_t::illegal_instruction;
-    }
-  }
-
-  void replace(insn_bits_t opcode, const insn_desc_t* desc)
-  {
-    for (size_t i = associativity - 1; i > 0; i--) {
-      tag[i] = tag[i-1];
-      contents[i] = contents[i-1];
-    }
-
-    tag[0] = opcode;
-    contents[0] = desc;
-  }
-
-  std::tuple<bool, const insn_desc_t*> lookup(insn_bits_t opcode)
-  {
-    for (size_t i = 0; i < associativity; i++)
-      if (tag[i] == opcode)
-        return std::tuple(true, contents[i]);
-
-    return std::tuple(false, nullptr);
-  }
-
- private:
-  static const size_t associativity = 4;
-  insn_bits_t tag[associativity];
-  const insn_desc_t* contents[associativity];
-  elp_t elp;
   int core_index;
 };
 
@@ -273,6 +231,7 @@ class opcode_cache_entry_t {
   static const size_t associativity = 4;
   insn_bits_t tag[associativity];
   const insn_desc_t* contents[associativity];
+  int core_index;
 };
 
 // this class represents one processor in a RISC-V machine.

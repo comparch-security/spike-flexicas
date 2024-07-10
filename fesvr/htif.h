@@ -7,6 +7,7 @@
 #include "syscall.h"
 #include "device.h"
 #include "byteorder.h"
+#include "term.h"
 #include "../riscv/platform.h"
 #include <string.h>
 #include <map>
