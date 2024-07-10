@@ -69,7 +69,7 @@ install_exes_dir := $(INSTALLDIR)/bin
 sprojs         := @subprojects@
 sprojs_enabled := @subprojects_enabled@
 
-sprojs_include := -I. -I$(src_dir) $(addprefix -I$(src_dir)/, $(sprojs_enabled))
+sprojs_include := -iquote . -I$(src_dir) $(addprefix -iquote $(src_dir)/, $(sprojs_enabled))
 VPATH := $(addprefix $(src_dir)/, $(sprojs_enabled))
 
 #-------------------------------------------------------------------------
@@ -95,7 +95,7 @@ VPATH := $(addprefix $(src_dir)/, $(sprojs_enabled))
 
 opt-level        := -g0 -O3
 default-CFLAGS   := -DPREFIX=\"$(prefix)\" -Wall -Wno-unused -Wno-nonportable-include-path $(opt-level) -fPIC
-default-CXXFLAGS := $(default-CFLAGS) -std=c++17 -fconcepts
+default-CXXFLAGS := $(default-CFLAGS) -std=c++2a
 
 mcppbs-CPPFLAGS := @CPPFLAGS@
 mcppbs-CFLAGS   := $(default-CFLAGS) @CFLAGS@
