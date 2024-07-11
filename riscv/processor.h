@@ -43,7 +43,7 @@ struct insn_desc_t
   insn_func_t logged_rv32e;
   insn_func_t logged_rv64e;
 
-  insn_func_t func(int xlen, bool rve, bool logged)
+  insn_func_t func(int xlen, bool rve, bool logged) const
   {
     if (logged)
       if (rve)
@@ -57,12 +57,7 @@ struct insn_desc_t
         return xlen == 64 ? fast_rv64i : fast_rv32i;
   }
 
-  static insn_desc_t illegal()
-  {
-    return {0, 0,
-            &illegal_instruction, &illegal_instruction, &illegal_instruction, &illegal_instruction,
-            &illegal_instruction, &illegal_instruction, &illegal_instruction, &illegal_instruction};
-  }
+  static const insn_desc_t illegal_instruction;
 };
 
 // regnum, data
@@ -128,6 +123,7 @@ struct state_t
   csr_t_p htval;
   csr_t_p htinst;
   csr_t_p hgatp;
+  hvip_csr_t_p hvip;
   sstatus_csr_t_p sstatus;
   vsstatus_csr_t_p vsstatus;
   csr_t_p vstvec;
@@ -140,6 +136,7 @@ struct state_t
   dcsr_csr_t_p dcsr;
   csr_t_p tselect;
   csr_t_p tdata2;
+  csr_t_p tcontrol;
   csr_t_p scontext;
   csr_t_p mcontext;
 
@@ -170,6 +167,10 @@ struct state_t
   csr_t_p stimecmp;
   csr_t_p vstimecmp;
 
+  csr_t_p srmcfg;
+
+  csr_t_p ssp;
+
   bool serialized; // whether timer CSRs are in a well-defined state
 
   // When true, execute a single instruction and then enter debug mode.  This
@@ -187,6 +188,49 @@ struct state_t
   int last_inst_xlen;
   int last_inst_flen;
 
+  elp_t elp;
+  int core_index;
+};
+
+class opcode_cache_entry_t {
+ public:
+  opcode_cache_entry_t()
+  {
+    reset();
+  }
+
+  void reset()
+  {
+    for (size_t i = 0; i < associativity; i++) {
+      tag[i] = 0;
+      contents[i] = &insn_desc_t::illegal_instruction;
+    }
+  }
+
+  void replace(insn_bits_t opcode, const insn_desc_t* desc)
+  {
+    for (size_t i = associativity - 1; i > 0; i--) {
+      tag[i] = tag[i-1];
+      contents[i] = contents[i-1];
+    }
+
+    tag[0] = opcode;
+    contents[0] = desc;
+  }
+
+  std::tuple<bool, const insn_desc_t*> lookup(insn_bits_t opcode)
+  {
+    for (size_t i = 0; i < associativity; i++)
+      if (tag[i] == opcode)
+        return std::tuple(true, contents[i]);
+
+    return std::tuple(false, nullptr);
+  }
+
+ private:
+  static const size_t associativity = 4;
+  insn_bits_t tag[associativity];
+  const insn_desc_t* contents[associativity];
   int core_index;
 };
 
@@ -230,6 +274,9 @@ public:
   extension_t* get_extension(const char* name);
   bool any_custom_extensions() const {
     return !custom_extensions.empty();
+  }
+  bool any_vector_extensions() const {
+    return VU.VLEN > 0;
   }
   bool extension_enabled(unsigned char ext) const {
     return extension_enabled(isa_extension_t(ext));
@@ -280,7 +327,12 @@ public:
 
   FILE *get_log_file() { return log_file; }
 
-  void register_insn(insn_desc_t);
+  void register_base_insn(insn_desc_t insn) {
+    register_insn(insn, false /* is_custom */);
+  }
+  void register_custom_insn(insn_desc_t insn) {
+    register_insn(insn, true /* is_custom */);
+  }
   void register_extension(extension_t*);
 
   // MMIO slave interface
@@ -309,6 +361,8 @@ public:
   void clear_waiting_for_interrupt() { in_wfi = false; };
   bool is_waiting_for_interrupt() { return in_wfi; };
 
+  void check_if_lpad_required();
+
 private:
   const isa_parser_t * const isa;
   const cfg_t * const cfg;
@@ -335,16 +389,18 @@ private:
   mutable std::bitset<NUM_ISA_EXTENSIONS> extension_assumed_const;
 
   std::vector<insn_desc_t> instructions;
+  std::vector<insn_desc_t> custom_instructions;
   std::unordered_map<reg_t,uint64_t> pc_histogram;
 
-  static const size_t OPCODE_CACHE_SIZE = 8191;
-  insn_desc_t opcode_cache[OPCODE_CACHE_SIZE];
+  static const size_t OPCODE_CACHE_SIZE = 4095;
+  opcode_cache_entry_t opcode_cache[OPCODE_CACHE_SIZE];
 
   void take_pending_interrupt() { take_interrupt(state.mip->read() & state.mie->read()); }
   void take_interrupt(reg_t mask); // take first enabled interrupt in mask
   void take_trap(trap_t& t, reg_t epc); // take an exception
   void take_trigger_action(triggers::action_t action, reg_t breakpoint_tval, reg_t epc, bool virt);
   void disasm(insn_t insn); // disassemble and print an instruction
+  void register_insn(insn_desc_t, bool);
   int paddr_bits();
 
   void enter_debug_mode(uint8_t cause);
@@ -356,7 +412,6 @@ private:
   friend class plic_t;
   friend class extension_t;
 
-  void parse_varch_string(const char*);
   void parse_priv_string(const char*);
   void build_opcode_map();
   void register_base_instructions();

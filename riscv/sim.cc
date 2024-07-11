@@ -38,7 +38,7 @@ extern device_factory_t* ns16550_factory;
 
 sim_t::sim_t(const cfg_t *cfg, bool halted,
              std::vector<std::pair<reg_t, abstract_mem_t*>> mems,
-             std::vector<device_factory_t*> plugin_device_factories,
+             const std::vector<device_factory_sargs_t>& plugin_device_factories,
              const std::vector<std::string>& args,
              const debug_module_config_t &dm_config,
              const char *log_path, const char *print_log_path,
@@ -117,10 +117,10 @@ sim_t::sim_t(const cfg_t *cfg, bool halted,
   // that's not bus-accessible), but it should handle the normal use cases. In
   // particular, the default device tree configuration that you get without
   // setting the dtb_file argument has one.
-  std::vector<const device_factory_t*> device_factories = {
-    clint_factory, // clint must be element 0
-    plic_factory, // plic must be element 1
-    ns16550_factory};
+  std::vector<device_factory_sargs_t> device_factories = {
+    {clint_factory, {}}, // clint must be element 0
+    {plic_factory, {}}, // plic must be element 1
+    {ns16550_factory, {}}};
   device_factories.insert(device_factories.end(),
                           plugin_device_factories.begin(),
                           plugin_device_factories.end());
@@ -138,8 +138,11 @@ sim_t::sim_t(const cfg_t *cfg, bool halted,
   } else {
     std::pair<reg_t, reg_t> initrd_bounds = cfg->initrd_bounds;
     std::string device_nodes;
-    for (const device_factory_t *factory : device_factories)
-      device_nodes.append(factory->generate_dts(this));
+    for (const device_factory_sargs_t& factory_sargs: device_factories) {
+      const device_factory_t* factory = factory_sargs.first;
+      const std::vector<std::string>& sargs = factory_sargs.second;
+      device_nodes.append(factory->generate_dts(this, sargs));
+    }
     dts = make_dts(INSNS_PER_RTC_TICK, CPU_HZ,
                    initrd_bounds.first, initrd_bounds.second,
                    cfg->bootargs, cfg->pmpregions, cfg->pmpgranularity,
@@ -162,9 +165,10 @@ sim_t::sim_t(const cfg_t *cfg, bool halted,
   void *fdt = (void *)dtb.c_str();
 
   for (size_t i = 0; i < device_factories.size(); i++) {
-    const device_factory_t *factory = device_factories[i];
+    const device_factory_t* factory = device_factories[i].first;
+    const std::vector<std::string>& sargs = device_factories[i].second;
     reg_t device_base = 0;
-    abstract_device_t* device = factory->parse_from_fdt(fdt, this, &device_base);
+    abstract_device_t* device = factory->parse_from_fdt(fdt, this, &device_base, sargs);
     if (device) {
       assert(device_base);
       std::shared_ptr<abstract_device_t> dev_ptr(device);
@@ -178,14 +182,18 @@ sim_t::sim_t(const cfg_t *cfg, bool halted,
   }
 
   //per core attribute
-  int cpu_offset = 0, rc;
+  int cpu_offset = 0, cpu_map_offset, rc;
   size_t cpu_idx = 0;
   cpu_offset = fdt_get_offset(fdt, "/cpus");
+  cpu_map_offset = fdt_get_offset(fdt, "/cpus/cpu-map");
   if (cpu_offset < 0)
     return;
 
   for (cpu_offset = fdt_get_first_subnode(fdt, cpu_offset); cpu_offset >= 0;
        cpu_offset = fdt_get_next_subnode(fdt, cpu_offset)) {
+
+    if (!(cpu_map_offset < 0) && cpu_offset == cpu_map_offset)
+      continue;
 
     if (cpu_idx >= nprocs())
       break;
