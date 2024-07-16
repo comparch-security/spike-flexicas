@@ -270,7 +270,7 @@ public:
     for (size_t offset = 0; offset < blocksz; offset += 1)
       check_triggers(triggers::OPERATION_STORE, base + offset, false, addr, std::nullopt);
     convert_load_traps_to_store_traps({
-      const reg_t paddr = translate(generate_access_info(addr, LOAD, {}), 1);
+      paddr = translate(generate_access_info(addr, LOAD, {}), 1);
       if (sim->reservable(paddr)) {
         if (tracer.interested_in_range(paddr, paddr + PGSIZE, LOAD))
           tracer.clean_invalidate(paddr, blocksz, clean, inval);

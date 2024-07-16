@@ -281,6 +281,7 @@ void sim_t::step(size_t n)
         current_proc = 0;
         reg_t rtc_ticks = INTERLEAVE / INSNS_PER_RTC_TICK;
         for (auto &dev : devices) dev->tick(rtc_ticks);
+        flexicas::bump_wall_clock(rtc_ticks); // update the wall clock for the cache model's monitor
       }
     }
   }

@@ -93,7 +93,7 @@ VPATH := $(addprefix $(src_dir)/, $(sprojs_enabled))
 # These all appear on the command line, from lowest precedence to
 # highest.
 
-opt-level        := -g0 -O3
+opt-level        := -g0 -O3 -DNDEBUG
 default-CFLAGS   := -DPREFIX=\"$(prefix)\" -Wall -Wno-unused -Wno-nonportable-include-path $(opt-level) -fPIC
 default-CXXFLAGS := $(default-CFLAGS) -std=c++2a
 

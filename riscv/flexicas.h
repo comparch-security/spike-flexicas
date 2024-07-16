@@ -24,6 +24,7 @@ namespace flexicas {
   extern void csr_write(uint64_t cmd, int core, tlb_translate_func translator);
   extern uint64_t csr_read(int core);
   extern void bump_cycle(int step, int core);
+  extern void bump_wall_clock(int step);
 }
 
 class flexicas_csr_t: public csr_t {
