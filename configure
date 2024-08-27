@@ -6829,14 +6829,14 @@ printf "%s\n" "#define CUSTOMEXT_ENABLED /**/" >>confdefs.h
     # 'subproject.ac'.
 
 
-      { $as_echo "$as_me:${as_lineno-$LINENO}: configuring default subproject : flexicas" >&5
-$as_echo "$as_me: configuring default subproject : flexicas" >&6;}
+      { printf "%s\n" "$as_me:${as_lineno-$LINENO}: configuring default subproject : flexicas" >&5
+printf "%s\n" "$as_me: configuring default subproject : flexicas" >&6;}
       ac_config_files="$ac_config_files flexicas.mk:flexicas/flexicas.mk.in"
 
       enable_flexicas_sproj="yes"
       subprojects_enabled="$subprojects_enabled flexicas"
 
-$as_echo "#define FLEXICAS_ENABLED /**/" >>confdefs.h
+printf "%s\n" "#define FLEXICAS_ENABLED /**/" >>confdefs.h
 
 
 
@@ -7745,6 +7745,7 @@ do
     "riscv.mk") CONFIG_FILES="$CONFIG_FILES riscv.mk:riscv/riscv.mk.in" ;;
     "disasm.mk") CONFIG_FILES="$CONFIG_FILES disasm.mk:disasm/disasm.mk.in" ;;
     "customext.mk") CONFIG_FILES="$CONFIG_FILES customext.mk:customext/customext.mk.in" ;;
+    "flexicas.mk") CONFIG_FILES="$CONFIG_FILES flexicas.mk:flexicas/flexicas.mk.in" ;;
     "fdt.mk") CONFIG_FILES="$CONFIG_FILES fdt.mk:fdt/fdt.mk.in" ;;
     "softfloat.mk") CONFIG_FILES="$CONFIG_FILES softfloat.mk:softfloat/softfloat.mk.in" ;;
     "spike_main.mk") CONFIG_FILES="$CONFIG_FILES spike_main.mk:spike_main/spike_main.mk.in" ;;
