@@ -5,6 +5,7 @@
 
 #include "csrs.h"
 #include <functional>
+#include <map>
 
 namespace flexicas {
   static const unsigned int CSR_FLAXICAS_PFC = 0x8F0;
@@ -15,8 +16,8 @@ namespace flexicas {
   extern int  cache_set(int level, bool ic);
   extern int  cache_way(int level, bool ic);
   extern void init(int ncore, const char *pfc_log_prefix);
-  extern void read(uint64_t addr, int core, bool ic = false);
-  extern void write(uint64_t addr, int core);
+  extern uint64_t read(uint64_t addr, int core, bool ic = false, uint64_t len = 4);
+  extern void write(uint64_t addr, int core, uint64_t len, uint8_t* data);
   extern void flush(uint64_t addr, int core);
   extern void flush_icache(int core);
   extern void writeback(uint64_t addr, int core);
@@ -25,6 +26,8 @@ namespace flexicas {
   extern uint64_t csr_read(int core);
   extern void bump_cycle(int step, int core);
   extern void bump_wall_clock(int step);
+  extern void init_memory(std::map<uint64_t, char*>& map);
+  extern void write_memory(uint64_t addr, uint64_t data);
 }
 
 class flexicas_csr_t: public csr_t {

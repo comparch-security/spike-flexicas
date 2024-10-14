@@ -106,6 +106,8 @@ sim_t::sim_t(const cfg_t *cfg, bool halted,
     procs[i]->get_mmu()->register_mems(mems);
   }
 
+  debug_mmu->register_mems(mems);
+
   // When running without using a dtb, skip the fdt-based configuration steps
   if (!dtb_enabled) return;
 
@@ -449,4 +451,15 @@ endianness_t sim_t::get_target_endianness() const
 void sim_t::proc_reset(unsigned id)
 {
   debug_module.proc_reset(id);
+}
+
+void sim_t::sync_memory()
+{
+  for(auto m : mems){
+    flexicas::init_memory(dynamic_cast<mem_t*>(m.second)->get_map());
+  }
+  debug_mmu->set_init_memory();
+  for (int i = 0; i < procs.size(); i++){
+    procs[i]->get_mmu()->set_init_memory();
+  }
 }

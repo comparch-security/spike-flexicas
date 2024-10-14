@@ -112,12 +112,20 @@ public:
       load_slow_path(addr, sizeof(T), (uint8_t*)&res, xlate_flags);
     }
 
-    if(proc) {
-      auto tr = tlb_d->translate(vpn, generate_access_info(addr, LOAD, xlate_flags));
+    if (init_memory && tlb_load_tag[vpn % TLB_ENTRIES] == vpn) {
       uint64_t paddr = addr + tlb_data[vpn % TLB_ENTRIES].target_offset;
-      if(tr.va && !xlate_flags.is_special_access() && is_memory(paddr)) assert(tr.ppn == paddr >> PGSHIFT);
-      if(tr.va) assert(check_tlb_permission_data(tr.pte, LOAD));
-      if(is_memory(paddr)) flexicas::read(paddr, core, false);
+      if (proc) {
+        auto tr = tlb_d->translate(vpn, generate_access_info(addr, LOAD, xlate_flags));
+        if(tr.va && !xlate_flags.is_special_access() && is_memory(paddr)) assert(tr.ppn == paddr >> PGSHIFT);
+        if(tr.va) assert(check_tlb_permission_data(tr.pte, LOAD));
+      }
+      if(is_memory(paddr)) {
+        auto data = (T)(flexicas::read(paddr, proc ? core : 0, false, sizeof(T)));
+        if (data != from_target(res)){
+          printf("addr is %lx, data is %lx\n", paddr, data);
+        }
+        assert(data == from_target(res));
+      } 
     }
 
     if (unlikely(proc && proc->get_log_commits_enabled()))
@@ -161,13 +169,15 @@ public:
       target_endian<T> target_val = to_target(val);
       store_slow_path(addr, sizeof(T), (const uint8_t*)&target_val, xlate_flags, true, false);
     }
-
-    if(proc) {
-      auto tr = tlb_d->translate(vpn, generate_access_info(addr, STORE, xlate_flags));
+    if (init_memory) {
       uint64_t paddr = addr + tlb_data[vpn % TLB_ENTRIES].target_offset;
-      if(tr.va && !xlate_flags.is_special_access() && is_memory(paddr)) assert(tr.ppn == paddr >> PGSHIFT);
-      if(tr.va) assert(check_tlb_permission_data(tr.pte, STORE));
-      if(is_memory(paddr)) flexicas::write(paddr, core);
+      if (proc) {
+        auto tr = tlb_d->translate(vpn, generate_access_info(addr, STORE, xlate_flags));
+        if(tr.va && !xlate_flags.is_special_access() && is_memory(paddr)) assert(tr.ppn == paddr >> PGSHIFT);
+        if(tr.va) assert(check_tlb_permission_data(tr.pte, STORE));
+      }
+      target_endian<T> target_val = to_target(val);
+      if(is_memory(paddr)) flexicas::write(paddr, proc ? core : 0, sizeof(T), (uint8_t*)&target_val);
     }
 
     if (unlikely(proc && proc->get_log_commits_enabled()))
@@ -342,8 +352,6 @@ public:
     int length = insn_length(insn);
 
     uint64_t paddr = addr + tlb_entry.target_offset;
-    if(is_memory(paddr)) flexicas::read(paddr, core, true); // normally more than one instruction is readed per refill
-
     if (likely(length == 4)) {
       insn |= (insn_bits_t)from_le(*(const uint16_t*)translate_insn_addr_to_host(addr + 2)) << 16;
     } else if (length == 2) {
@@ -356,6 +364,11 @@ public:
       insn |= (insn_bits_t)from_le(*(const uint16_t*)translate_insn_addr_to_host(addr + 2)) << 16;
       insn |= (insn_bits_t)from_le(*(const uint16_t*)translate_insn_addr_to_host(addr + 4)) << 32;
       insn |= (insn_bits_t)from_le(*(const uint16_t*)translate_insn_addr_to_host(addr + 6)) << 48;
+    }
+    if(is_memory(paddr)) {
+      auto flexicas_insn = flexicas::read(paddr, core, true); // normally more than one instruction is readed per refill
+      // if(flexicas_insn != insn)
+        // printf("failed, addr is %lx, len is %d, insn is %lx, flexicas_insn is %lx\n", paddr, length, insn, flexicas_insn);                  
     }
 
     insn_fetch_t fetch = {proc->decode_insn(insn), insn};
@@ -372,7 +385,11 @@ public:
     if (likely(entry->tag == addr)) {
       auto tlb_entry = translate_insn_addr(addr); // must have hit in software tlb
       uint64_t paddr = addr + tlb_entry.target_offset;
-      if(is_memory(paddr)) flexicas::read(paddr, core, true);
+      if(is_memory(paddr)) {
+        auto flexicas_insn = flexicas::read(paddr, core, true);
+        // if(flexicas_insn != (entry->data.insn.bits()))
+          // printf("fast failed, addr is %lx, insn is %lx, flexicas_insn is %lx\n", paddr, entry->data.insn.bits(), flexicas_insn);                  
+      }
       return entry;
     }
     return refill_icache(addr, entry);
@@ -431,6 +448,10 @@ public:
     blocksz = size;
   }
 
+  void set_init_memory() {
+    init_memory = true;
+  }
+
 private:
   simif_t* sim;
   processor_t* proc;
@@ -439,6 +460,7 @@ private:
   reg_t load_reservation_address;
   uint16_t fetch_temp;
   reg_t blocksz;
+  bool init_memory = false;
 
   // implement an instruction cache for simulator performance
   icache_entry_t icache[ICACHE_ENTRIES];

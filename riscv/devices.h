@@ -56,6 +56,7 @@ class mem_t : public abstract_mem_t {
   char* contents(reg_t addr) override;
   reg_t size() override { return sz; }
   void dump(std::ostream& o) override;
+  std::map<reg_t, char*>& get_map() { return sparse_memory_map; }
 
  private:
   bool load_store(reg_t addr, size_t len, uint8_t* bytes, bool store);

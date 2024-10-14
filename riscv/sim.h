@@ -147,6 +147,7 @@ private:
   // htif
   virtual void reset() override;
   virtual void idle() override;
+  virtual void sync_memory() override;
   virtual void read_chunk(addr_t taddr, size_t len, void* dst) override;
   virtual void write_chunk(addr_t taddr, size_t len, const void* src) override;
   virtual size_t chunk_align() override { return 8; }

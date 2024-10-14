@@ -53,6 +53,8 @@ class htif_t : public chunked_memif_t
  protected:
   virtual void reset() = 0;
 
+  virtual void sync_memory() = 0;
+
   virtual void read_chunk(addr_t taddr, size_t len, void* dst) = 0;
   virtual void write_chunk(addr_t taddr, size_t len, const void* src) = 0;
   virtual void clear_chunk(addr_t taddr, size_t len);
