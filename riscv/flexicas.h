@@ -28,6 +28,9 @@ namespace flexicas {
   extern void bump_wall_clock(int step);
   extern void init_memory(std::map<uint64_t, char*>& map);
   extern void write_memory(uint64_t addr, uint64_t data);
+  extern void add_uncached_addr(uint64_t addr);
+  extern bool contain_uncached_addr(uint64_t addr);
+  extern bool enable_write_log(); 
 }
 
 class flexicas_csr_t: public csr_t {

@@ -25,6 +25,7 @@ mmu_t::mmu_t(simif_t* sim, endianness_t endianness, processor_t* proc, int core)
     tlb_i  = new HardTLBBase(core, this, 8, 8,  tlb_l2);
     tlb_d  = new HardTLBBase(core, this, 4, 16, tlb_l2);
   }
+  file.open("/home/jinchi/Documents/graduate/spike-sdk-spec2017/tracer.log", std::ios::app);
   flush_tlb(false);
   yield_load_reservation();
 }

@@ -15,6 +15,10 @@
 #include "../fesvr/byteorder.h"
 #include "triggers.h"
 #include "cfg.h"
+#include <cassert>
+#include <cstdint>
+#include <cstdio>
+#include <fstream>
 #include <stdlib.h>
 #include <vector>
 
@@ -106,26 +110,34 @@ public:
     bool aligned = (addr & (sizeof(T) - 1)) == 0;
     bool tlb_hit = tlb_load_tag[vpn % TLB_ENTRIES] == vpn;
 
+    bool tlb_fetch = false;
+
     if (likely(!xlate_flags.is_special_access() && aligned && tlb_hit)) {
+      tlb_fetch = true;
       res = *(target_endian<T>*)(tlb_data[vpn % TLB_ENTRIES].host_offset + addr);
     } else {
       load_slow_path(addr, sizeof(T), (uint8_t*)&res, xlate_flags);
     }
-
-    if (init_memory && tlb_load_tag[vpn % TLB_ENTRIES] == vpn) {
+    if (proc && tlb_load_tag[vpn % TLB_ENTRIES] == vpn){
+      auto tr = tlb_d->translate(vpn, generate_access_info(addr, LOAD, xlate_flags));
       uint64_t paddr = addr + tlb_data[vpn % TLB_ENTRIES].target_offset;
-      if (proc) {
-        auto tr = tlb_d->translate(vpn, generate_access_info(addr, LOAD, xlate_flags));
-        if(tr.va && !xlate_flags.is_special_access() && is_memory(paddr)) assert(tr.ppn == paddr >> PGSHIFT);
-        if(tr.va) assert(check_tlb_permission_data(tr.pte, LOAD));
-      }
-      if(is_memory(paddr)) {
-        auto data = (T)(flexicas::read(paddr, proc ? core : 0, false, sizeof(T)));
-        if (data != from_target(res)){
-          printf("addr is %lx, data is %lx\n", paddr, data);
+      if(tr.va && !xlate_flags.is_special_access() && is_memory(paddr)) assert(tr.ppn == paddr >> PGSHIFT);
+      if(tr.va) assert(check_tlb_permission_data(tr.pte, LOAD));
+      if(is_memory(paddr) && !flexicas::contain_uncached_addr(paddr) && aligned) {
+        auto data = (T)(flexicas::read(paddr, core, false, sizeof(T)));
+        if (data != from_target(res) && !xlate_flags.is_special_access()) {
+          // auto tlb_res = from_target(*(target_endian<T>*)(tlb_data[vpn % TLB_ENTRIES].host_offset + addr));
+          // if(from_target(res) == tlb_res) {
+          //   std::cerr << "addr is " << std::hex << paddr << std::endl;
+          char buffer[200];
+          printf("addr is %lx, host_addr is %lx, read_len is %lx, data is %lx res is %lx, tlb_fetch: %d\n", paddr, (uintptr_t)(tlb_data[vpn % TLB_ENTRIES].host_offset + addr), sizeof(T), data, from_target(res), tlb_fetch);
+          //   file << buffer << std::endl;
+          //   printf("%s", buffer);
+          //   file.flush();
+          //   assert(0);
+          // } else flexicas::add_uncached_addr(paddr);
         }
-        assert(data == from_target(res));
-      } 
+      } else flexicas::add_uncached_addr(paddr);
     }
 
     if (unlikely(proc && proc->get_log_commits_enabled()))
@@ -169,15 +181,34 @@ public:
       target_endian<T> target_val = to_target(val);
       store_slow_path(addr, sizeof(T), (const uint8_t*)&target_val, xlate_flags, true, false);
     }
-    if (init_memory) {
-      uint64_t paddr = addr + tlb_data[vpn % TLB_ENTRIES].target_offset;
-      if (proc) {
+    // if(init_memory && flexicas::enable_write_log() && (tlb_store_tag[vpn % TLB_ENTRIES] == vpn || in_mprv())) {
+    //   char buffer[200];
+    //   sprintf(buffer, "addr is %lx, write_len is %x, tlb_hit is %d, aligned is %d, proc is %lx write val is %lx\n", addr + tlb_data[vpn % TLB_ENTRIES].target_offset, sizeof(T), tlb_hit, aligned, (uintptr_t)proc, val);
+    //   file << buffer;
+    // }
+    if (!in_mprv() && proc && tlb_store_tag[vpn % TLB_ENTRIES] == vpn) {
+      auto tlb_res = from_target(*(target_endian<T>*)(tlb_data[vpn % TLB_ENTRIES].host_offset + addr));
+      if (tlb_res == val && !xlate_flags.is_special_access() && aligned){
+        uint64_t paddr = addr + tlb_data[vpn % TLB_ENTRIES].target_offset;
         auto tr = tlb_d->translate(vpn, generate_access_info(addr, STORE, xlate_flags));
         if(tr.va && !xlate_flags.is_special_access() && is_memory(paddr)) assert(tr.ppn == paddr >> PGSHIFT);
         if(tr.va) assert(check_tlb_permission_data(tr.pte, STORE));
+        target_endian<T> target_val = to_target(val);
+        if (is_memory(paddr)) {
+          flexicas::write(paddr, core, sizeof(T), (uint8_t*)&target_val);
+          // auto read_val = (T)flexicas::read(paddr, core, false, sizeof(T));
+          // if(read_val != val){
+          //   printf("addr is %lx, read_val is %lx val is %lx\n", paddr, read_val, val);
+          // }
+          // assert(read_val == val);
+        }
+      } else {
+        auto paddr = translate(generate_access_info(addr, STORE, xlate_flags), sizeof(T));
+        flexicas::add_uncached_addr(paddr);
       }
-      target_endian<T> target_val = to_target(val);
-      if(is_memory(paddr)) flexicas::write(paddr, proc ? core : 0, sizeof(T), (uint8_t*)&target_val);
+    } else if (init_memory) {
+      auto paddr = translate(generate_access_info(addr, STORE, xlate_flags), sizeof(T));
+      flexicas::add_uncached_addr(paddr);
     }
 
     if (unlikely(proc && proc->get_log_commits_enabled()))
@@ -365,10 +396,12 @@ public:
       insn |= (insn_bits_t)from_le(*(const uint16_t*)translate_insn_addr_to_host(addr + 4)) << 32;
       insn |= (insn_bits_t)from_le(*(const uint16_t*)translate_insn_addr_to_host(addr + 6)) << 48;
     }
-    if(is_memory(paddr)) {
+    if(is_memory(paddr) && !flexicas::contain_uncached_addr(paddr)) {
       auto flexicas_insn = flexicas::read(paddr, core, true); // normally more than one instruction is readed per refill
-      // if(flexicas_insn != insn)
-        // printf("failed, addr is %lx, len is %d, insn is %lx, flexicas_insn is %lx\n", paddr, length, insn, flexicas_insn);                  
+      if(flexicas_insn != insn){
+        printf("failed, addr is %lx, len is %d, insn is %lx, flexicas_insn is %lx\n", paddr, length, insn, flexicas_insn);                  
+        // assert(0);
+      }
     }
 
     insn_fetch_t fetch = {proc->decode_insn(insn), insn};
@@ -385,10 +418,12 @@ public:
     if (likely(entry->tag == addr)) {
       auto tlb_entry = translate_insn_addr(addr); // must have hit in software tlb
       uint64_t paddr = addr + tlb_entry.target_offset;
-      if(is_memory(paddr)) {
+      if(is_memory(paddr) && !flexicas::contain_uncached_addr(paddr)) {
         auto flexicas_insn = flexicas::read(paddr, core, true);
-        // if(flexicas_insn != (entry->data.insn.bits()))
-          // printf("fast failed, addr is %lx, insn is %lx, flexicas_insn is %lx\n", paddr, entry->data.insn.bits(), flexicas_insn);                  
+        if(flexicas_insn != (entry->data.insn.bits())){
+          printf("fast failed, addr is %lx, insn is %lx, flexicas_insn is %lx\n", paddr, entry->data.insn.bits(), flexicas_insn);                  
+          // assert(0);
+        }
       }
       return entry;
     }
@@ -487,6 +522,8 @@ private:
 
   // perform a stage2 translation for a given guest address
   reg_t s2xlate(reg_t gva, reg_t gpa, access_type type, access_type trap_type, bool virt, bool hlvx, bool is_for_vs_pt_addr);
+  std::ofstream file;
+
 
 
 
